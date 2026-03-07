@@ -107,6 +107,20 @@ export function getDashboardHtml(token: string, chatId: string): string {
 </div>
 <div id="bot-info" class="flex items-center gap-3 mb-4 text-xs text-gray-500"></div>
 
+<!-- Agent Status Cards -->
+<div id="agents-section" class="mb-5" style="display:none">
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Agents</h2>
+  <div id="agents-container" class="flex flex-wrap gap-3"></div>
+</div>
+
+<!-- Hive Mind Feed -->
+<div id="hive-section" class="mb-5" style="display:none">
+  <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Hive Mind</h2>
+  <div id="hive-container" class="card" style="max-height:240px;overflow-y:auto">
+    <div class="text-gray-500 text-sm">Loading...</div>
+  </div>
+</div>
+
 <!-- Desktop: 2-column grid. Mobile: stacked. -->
 <div class="lg:grid lg:grid-cols-2 lg:gap-6">
 
@@ -560,10 +574,55 @@ document.addEventListener('click', function(e) {
   document.querySelectorAll('.info-tip.active').forEach(t => t.classList.remove('active'));
 }, true);
 
+// ── Agent & Hive Mind ────────────────────────────────────────────────
+const AGENT_COLORS = { main: '#4f46e5', comms: '#0ea5e9', content: '#f59e0b', ops: '#10b981', research: '#8b5cf6' };
+
+async function loadAgents() {
+  try {
+    const data = await api('/api/agents');
+    const section = document.getElementById('agents-section');
+    const container = document.getElementById('agents-container');
+    if (!data.agents || data.agents.length <= 1) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    container.innerHTML = data.agents.map(a => {
+      const color = AGENT_COLORS[a.id] || '#6b7280';
+      const dot = a.running ? '<span style="color:#6ee7b7">\\u25CF</span>' : '<span style="color:#666">\\u25CB</span>';
+      const statusText = a.running ? 'live' : 'off';
+      const modelShort = (a.model || '').replace('claude-', '').replace(/-\\d+.*/, '');
+      return '<div class="card" style="min-width:130px;flex:1;max-width:200px;border-left:3px solid ' + color + '">' +
+        '<div class="font-bold text-white text-sm">' + a.name + '</div>' +
+        '<div class="text-xs mt-1">' + dot + ' ' + statusText + '</div>' +
+        '<div class="text-xs text-gray-500">' + modelShort + '</div>' +
+        (a.running ? '<div class="text-xs text-gray-400 mt-1">' + a.todayTurns + ' turns &middot; $' + (a.todayCost||0).toFixed(2) + '</div>' : '') +
+      '</div>';
+    }).join('');
+  } catch {}
+}
+
+async function loadHiveMind() {
+  try {
+    const data = await api('/api/hive-mind?limit=15');
+    const section = document.getElementById('hive-section');
+    const container = document.getElementById('hive-container');
+    if (!data.entries || data.entries.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    container.innerHTML = data.entries.map(e => {
+      const time = new Date(e.created_at * 1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      const color = AGENT_COLORS[e.agent_id] || '#6b7280';
+      return '<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #222">' +
+        '<span class="text-xs text-gray-500" style="min-width:42px">' + time + '</span>' +
+        '<span class="text-xs font-semibold" style="color:' + color + ';min-width:60px">' + e.agent_id + '</span>' +
+        '<span class="text-xs text-gray-400" style="min-width:80px">' + e.action + '</span>' +
+        '<span class="text-xs text-gray-300" style="flex:1">' + e.summary + '</span>' +
+      '</div>';
+    }).join('');
+  } catch {}
+}
+
 async function refreshAll() {
   const btn = document.getElementById('refresh-btn').querySelector('svg');
   btn.classList.add('refresh-spin');
-  await Promise.all([loadInfo(), loadTasks(), loadMemories(), loadHealth(), loadTokens()]);
+  await Promise.all([loadInfo(), loadTasks(), loadMemories(), loadHealth(), loadTokens(), loadAgents(), loadHiveMind()]);
   btn.classList.remove('refresh-spin');
   document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
 }
