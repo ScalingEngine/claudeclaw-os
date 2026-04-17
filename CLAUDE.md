@@ -316,3 +316,68 @@ print('Checkpoint saved.')
 "
 ```
 5. Confirm: "Checkpoint saved. Safe to /newchat."
+
+<!-- GSD:project-start source:PROJECT.md -->
+## Project
+
+**ClaudeClaw OS — Noah's Agent Fleet**
+
+A forked agent operating system (from earlyaidopters/claudeclaw-os) that gives Noah a visual dashboard ("Mission Control"), always-on multi-agent fleet, and task orchestration layer on his VPS — with Ezra promoted to the main agent and the full NoahBrain stack (Obsidian vault, 200+ skills, heartbeat, COS workflows, Notion/Linear/Slack integrations) flowing through the fleet. Accessible via dashboard on phone, Telegram for personal/mobile, and Slack for team-visible work.
+
+**Core Value:** Noah can see, command, and delegate to his entire agent fleet from a single dashboard on his phone — and the right agent picks up the right work without manual routing.
+
+### Constraints
+
+- **VPS RAM**: Agent fleet + Ezra must fit within available VPS memory (~4 GB total)
+- **Upstream churn**: 3-day-old repo, expect breaking changes — minimize core file edits
+- **Telegram bot tokens**: Each agent needs its own BotFather token (6 bots total)
+- **Slack integration**: ClaudeClaw's Slack support is basic (xoxp token) — may need enhancement for Ezra's full capability
+- **No OAuth on VPS**: Must use ANTHROPIC_API_KEY for all Claude API calls
+- **Dashboard security**: Must be behind Cloudflare Access — raw DASHBOARD_TOKEN exposure = full RCE risk
+<!-- GSD:project-end -->
+
+<!-- GSD:stack-start source:STACK.md -->
+## Technology Stack
+
+Technology stack not yet documented. Will populate after codebase mapping or first phase.
+<!-- GSD:stack-end -->
+
+<!-- GSD:conventions-start source:CONVENTIONS.md -->
+## Conventions
+
+Conventions not yet established. Will populate as patterns emerge during development.
+<!-- GSD:conventions-end -->
+
+<!-- GSD:architecture-start source:ARCHITECTURE.md -->
+## Architecture
+
+Architecture not yet mapped. Follow existing patterns found in the codebase.
+<!-- GSD:architecture-end -->
+
+<!-- GSD:skills-start source:skills/ -->
+## Project Skills
+
+| Skill | Description | Path |
+|-------|-------------|------|
+| add-migration |  | `.claude/skills/add-migration/SKILL.md` |
+<!-- GSD:skills-end -->
+
+<!-- GSD:workflow-start source:GSD defaults -->
+## GSD Workflow Enforcement
+
+Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+
+Use these entry points:
+- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
+- `/gsd-debug` for investigation and bug fixing
+- `/gsd-execute-phase` for planned phase work
+
+Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+<!-- GSD:workflow-end -->
+
+<!-- GSD:profile-start -->
+## Developer Profile
+
+> Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
+> This section is managed by `generate-claude-profile` -- do not edit manually.
+<!-- GSD:profile-end -->

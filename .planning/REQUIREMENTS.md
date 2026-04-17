@@ -109,37 +109,37 @@
 | EZRA-01 | Phase 2 | Pending |
 | EZRA-02 | Phase 2 | Pending |
 | EZRA-03 | Phase 2 | Pending |
-| EZRA-04 | Phase 2 | Pending |
-| EZRA-05 | Phase 2 | Pending |
-| EZRA-06 | Phase 2 | Pending |
-| FLEET-01 | Phase 3 | Pending |
-| FLEET-02 | Phase 3 | Pending |
-| FLEET-03 | Phase 3 | Pending |
-| FLEET-04 | Phase 3 | Pending |
-| FLEET-05 | Phase 3 | Pending |
-| FLEET-06 | Phase 3 | Pending |
-| FLEET-07 | Phase 3 | Pending |
-| FLEET-08 | Phase 3 | Pending |
-| INTG-01 | Phase 4 | Pending |
-| INTG-02 | Phase 4 | Pending |
-| INTG-03 | Phase 4 | Pending |
-| INTG-04 | Phase 4 | Pending |
-| INTG-05 | Phase 4 | Pending |
-| INTG-06 | Phase 4 | Pending |
-| VPS-01 | Phase 5 | Pending |
-| VPS-02 | Phase 5 | Pending |
-| VPS-03 | Phase 5 | Pending |
-| VPS-04 | Phase 5 | Pending |
-| VPS-05 | Phase 5 | Pending |
-| VPS-06 | Phase 5 | Pending |
-| OBS-01 | Phase 6 | Pending |
-| OBS-02 | Phase 6 | Pending |
-| OBS-03 | Phase 6 | Pending |
-| OBS-04 | Phase 6 | Pending |
-| OBS-05 | Phase 6 | Pending |
-| BRIEF-01 | Phase 7 | Pending |
-| BRIEF-02 | Phase 7 | Pending |
-| BRIEF-03 | Phase 7 | Pending |
+| EZRA-04 | Phase 3 | Pending |
+| EZRA-05 | Phase 3 | Pending |
+| EZRA-06 | Phase 3 | Pending |
+| FLEET-01 | Phase 4 | Pending |
+| FLEET-02 | Phase 4 | Pending |
+| FLEET-03 | Phase 4 | Pending |
+| FLEET-04 | Phase 4 | Pending |
+| FLEET-05 | Phase 4 | Pending |
+| FLEET-06 | Phase 4 | Pending |
+| FLEET-07 | Phase 5 | Pending |
+| FLEET-08 | Phase 5 | Pending |
+| INTG-01 | Phase 6 | Pending |
+| INTG-02 | Phase 6 | Pending |
+| INTG-03 | Phase 6 | Pending |
+| INTG-04 | Phase 6 | Pending |
+| INTG-05 | Phase 6 | Pending |
+| INTG-06 | Phase 6 | Pending |
+| VPS-01 | Phase 7 | Pending |
+| VPS-02 | Phase 7 | Pending |
+| VPS-03 | Phase 7 | Pending |
+| VPS-04 | Phase 7 | Pending |
+| VPS-05 | Phase 7 | Pending |
+| VPS-06 | Phase 7 | Pending |
+| OBS-01 | Phase 8 | Pending |
+| OBS-02 | Phase 8 | Pending |
+| OBS-03 | Phase 8 | Pending |
+| OBS-04 | Phase 8 | Pending |
+| OBS-05 | Phase 8 | Pending |
+| BRIEF-01 | Phase 9 | Pending |
+| BRIEF-02 | Phase 9 | Pending |
+| BRIEF-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v1 requirements: 38 total
@@ -148,4 +148,4 @@
 
 ---
 *Requirements defined: 2026-04-17*
-*Last updated: 2026-04-17 after initial definition*
+*Last updated: 2026-04-15 after roadmap creation (traceability updated to 9-phase structure)*
