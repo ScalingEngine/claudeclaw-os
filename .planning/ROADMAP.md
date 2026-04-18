@@ -34,7 +34,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `npm run build` (or equivalent) completes without TypeScript errors
   4. `curl localhost:3141/health` returns a success response
   5. Sending a message to the main Telegram bot from Noah's allowed chat ID produces a reply
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 01-01-branch-remote-PLAN.md — Cut noah/main branch, align main with upstream (FOUN-01)
+- [ ] 01-02-overlay-seed-PLAN.md — Seed ~/.claudeclaw/ overlay with Ezra persona, agent stub, hooks dir (FOUN-02)
+- [ ] 01-03-env-and-build-PLAN.md — Run setup wizard, write .env per D-10, npm install, npm run build (FOUN-03, FOUN-04)
+- [ ] 01-04-dashboard-health-PLAN.md — Start ClaudeClaw, verify curl /api/health returns 200 (FOUN-05)
+- [ ] 01-05-telegram-bot-PLAN.md — Register @ezra_claudeclaw_bot, verify test message reply (FOUN-06)
 
 ### Phase 2: Ezra Core
 **Goal**: Ezra is the active main agent in ClaudeClaw with Slack as his primary interface and Telegram as secondary — Noah can reach Ezra through either channel
@@ -133,7 +138,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/0 | Not started | - |
+| 1. Foundation | 0/5 | Not started | - |
 | 2. Ezra Core | 0/0 | Not started | - |
 | 3. Ezra Vault & Skills | 0/0 | Not started | - |
 | 4. Specialist Agents | 0/0 | Not started | - |
