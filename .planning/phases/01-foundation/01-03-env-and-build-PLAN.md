@@ -6,6 +6,7 @@ wave: 2
 depends_on: [01]
 files_modified:
   - .env
+  - .planning/REQUIREMENTS.md
 external_paths:
   - node_modules/
   - dist/
@@ -21,6 +22,7 @@ must_haves:
     - "npm install completed — node_modules/ exists"
     - "npm run build completed — dist/index.js exists"
     - "tsc compiles with zero errors"
+    - "REQUIREMENTS.md FOUN-04 text aligned with D-09 (no ANTHROPIC_API_KEY in Phase 1)"
   artifacts:
     - path: ".env"
       provides: "Runtime config for Phase 1 bot + dashboard + optional features"
@@ -29,6 +31,9 @@ must_haves:
       provides: "Compiled bot entry point (npm start runs this)"
     - path: "node_modules/@anthropic-ai/claude-agent-sdk"
       provides: "Claude Agent SDK installed (core dependency)"
+    - path: ".planning/REQUIREMENTS.md"
+      provides: "FOUN-04 text aligned with D-09 (OAuth-local) rather than the original ANTHROPIC_API_KEY phrasing"
+      contains: "FOUN-04"
   key_links:
     - from: "scripts/setup.ts"
       to: ".env"
@@ -41,11 +46,11 @@ must_haves:
 ---
 
 <objective>
-Run the existing `scripts/setup.ts` wizard to populate `.env` with the Phase 1 key set per D-10, install npm dependencies, and compile the TypeScript project so `dist/index.js` exists and is runnable. This satisfies FOUN-03 (dependencies installed + TypeScript compiles) and FOUN-04 (.env configured with all required vars).
+Run the existing `scripts/setup.ts` wizard to populate `.env` with the Phase 1 key set per D-10, install npm dependencies, compile the TypeScript project so `dist/index.js` exists and is runnable, and align REQUIREMENTS.md FOUN-04 text with D-09 (the original FOUN-04 phrasing required ANTHROPIC_API_KEY, which D-09 explicitly defers to Phase 7 VPS-only). This satisfies FOUN-03 (dependencies installed + TypeScript compiles) and FOUN-04 (.env configured with all required vars per the corrected requirement text).
 
-Purpose: Implement D-10 (Phase 1 .env key set), D-09 (no ANTHROPIC_API_KEY — local uses `claude login` OAuth), D-11 (single ALLOWED_CHAT_ID), D-12 (voice keys wired but not validated), D-13 (use existing wizard, do NOT write a new flow). Phase 1 success for dashboard (Plan 04) and Telegram (Plan 05) both depend on a working build + valid .env.
+Purpose: Implement D-10 (Phase 1 .env key set), D-09 (no ANTHROPIC_API_KEY — local uses `claude login` OAuth), D-11 (single ALLOWED_CHAT_ID), D-12 (voice keys wired but not validated), D-13 (use existing wizard, do NOT write a new flow). Phase 1 success for dashboard (Plan 04) and Telegram (Plan 05) both depend on a working build + valid .env. REQUIREMENTS.md FOUN-04 text must match the locked decision so there is no documentation drift.
 
-Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed, `dist/index.js` built.
+Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed, `dist/index.js` built, REQUIREMENTS.md FOUN-04 text aligned with D-09.
 </objective>
 
 <execution_context>
@@ -55,6 +60,7 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
 
 <context>
 @.planning/phases/01-foundation/01-CONTEXT.md
+@.planning/REQUIREMENTS.md
 @scripts/setup.ts
 @src/config.ts
 @package.json
@@ -69,16 +75,20 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
 <!-- HOURLY_TOKEN_BUDGET, MEMORY_NUDGE_INTERVAL_TURNS, MEMORY_NUDGE_INTERVAL_HOURS, -->
 <!-- EXFILTRATION_GUARD_ENABLED, PROTECTED_ENV_VARS, WARROOM_ENABLED, WARROOM_PORT, STREAM_STRATEGY -->
 
-<!-- Phase 1 minimum key set (D-10, distilled): -->
+<!-- Phase 1 minimum key set (D-10, distilled — exactly what CONTEXT.md D-10 lists): -->
 <!-- TELEGRAM_BOT_TOKEN, ALLOWED_CHAT_ID, DASHBOARD_TOKEN, DB_ENCRYPTION_KEY, DASHBOARD_PORT=3141, -->
-<!-- GOOGLE_API_KEY, GROQ_API_KEY, ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, CLAUDECLAW_CONFIG=~/.claudeclaw -->
+<!-- GOOGLE_API_KEY, GROQ_API_KEY, ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID -->
 <!-- Explicitly NOT SET: ANTHROPIC_API_KEY, WARROOM_ENABLED=true, SLACK_USER_TOKEN -->
+<!-- Note: CLAUDECLAW_CONFIG is NOT in D-10. src/config.ts line 111-112 defaults it to '~/.claudeclaw', -->
+<!-- which is exactly what Plan 02 creates. No .env entry needed. -->
 
 <!-- Wizard flow (scripts/setup.ts) sequence the executor will follow in Task 2: -->
 <!-- 1. Intro + "Ready to continue?" → Y -->
 <!-- 2. System checks (Node 20+, Claude CLI, git config, build) -->
 <!-- 3. Feature selection: Voice input Y, Voice output Y, Video analysis Y, War Room N, WhatsApp N -->
-<!-- 4. CLAUDECLAW_CONFIG path → default ~/.claudeclaw (Plan 02 already created it) -->
+<!-- 4. CLAUDECLAW_CONFIG path → Enter to accept wizard default (~/.claudeclaw — matches src/config.ts default). -->
+<!--    If wizard writes CLAUDECLAW_CONFIG to .env with the default, that's acceptable — it's still the default value. -->
+<!--    If wizard omits it when unchanged, that's also acceptable (src/config.ts default applies). -->
 <!-- 5. Skills section (informational) -->
 <!-- 6. Telegram bot token → Noah pastes TOKEN from Plan 05 BotFather registration IF already registered; -->
 <!--    otherwise the wizard is re-run after Plan 05. Task 2 notes this handshake. -->
@@ -93,6 +103,12 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
 <!-- 15. "Start the bot now?" → N (Plan 04 handles start + health check) -->
 
 <!-- Build: `npm run build` → tsc → dist/index.js. The wizard runs build in system checks if dist/ missing. -->
+
+<!-- REQUIREMENTS.md FOUN-04 text correction (Task 4): -->
+<!-- Original: "FOUN-04: .env configured with all required vars (ANTHROPIC_API_KEY, bot tokens, DB encryption key, dashboard token)" -->
+<!-- Target:   "FOUN-04: .env configured with required vars per D-10 (bot token, chat ID, dashboard token, DB encryption key, -->
+<!--            dashboard port, and pre-wired optional Gemini/Groq/ElevenLabs keys). ANTHROPIC_API_KEY deferred to Phase 7 -->
+<!--            (VPS-only) per D-09." -->
 </interfaces>
 </context>
 
@@ -152,7 +168,7 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
     | "Video analysis?" | **Y** (enables GOOGLE_API_KEY prompt — D-10 Gemini) |
     | "War Room?" | **N** (Out of Scope per PROJECT.md + Deferred) |
     | "WhatsApp bridge?" | **N** (Out of Scope) |
-    | Config directory | **Enter** (keeps `~/.claudeclaw` — Plan 02 already created it) |
+    | Config directory | **Enter** (keeps `~/.claudeclaw` — Plan 02 already created it; CLAUDECLAW_CONFIG is not mandatory per D-10, src/config.ts defaults it to `~/.claudeclaw`) |
     | CLAUDE.md personalization note | Read, continue |
     | "Paste your bot token" | **Paste TELEGRAM_BOT_TOKEN from BotFather registration (Plan 05 handles registration if not done yet)**. If you have not registered `@ezra_claudeclaw_bot` yet, skip by Ctrl+C, run Plan 05 first, then re-run `npm run setup`. |
     | "Ready? Send a message to your bot" | Open Telegram, message `@ezra_claudeclaw_bot`, reply **Y**. Wizard auto-detects ALLOWED_CHAT_ID. |
@@ -183,13 +199,12 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
   <action>
     Validate `.env` against D-10 specification. Run the following checks (fail fast — any missing required key = STOP and surface to Noah to re-run wizard):
 
-    1. Required keys present + non-empty (core):
+    1. Required keys present + non-empty (core — exactly D-10's list):
        - `TELEGRAM_BOT_TOKEN` — any non-empty value
        - `ALLOWED_CHAT_ID` — numeric string
        - `DASHBOARD_TOKEN` — hex string, length ≥ 48 chars (wizard generates 24 bytes = 48 hex)
        - `DB_ENCRYPTION_KEY` — hex string, length 64 chars (32 bytes)
        - `DASHBOARD_PORT=3141` (exact)
-       - `CLAUDECLAW_CONFIG` — expands to absolute path of `~/.claudeclaw`
 
     2. Required keys present + non-empty (voice + video per D-10/D-12):
        - `GOOGLE_API_KEY`
@@ -215,6 +230,8 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
     If any check fails with missing D-10 keys, do NOT hand-edit `.env`. Instead surface back to Noah with the missing key name and have him re-run `npm run setup`.
 
     If only the absence checks fail (e.g., ANTHROPIC_API_KEY has a value), edit `.env` directly to clear that line (set to `ANTHROPIC_API_KEY=` with empty value). Do not touch any other line.
+
+    Note: CLAUDECLAW_CONFIG is NOT a D-10 required key. If the wizard wrote it with the default value (`~/.claudeclaw`), that is acceptable but NOT asserted. If it is absent from .env, src/config.ts line 111-112 default applies — also acceptable. No gate around this key.
   </action>
   <verify>
     <automated>test -f .env && grep -q '^TELEGRAM_BOT_TOKEN=..*' .env && grep -q '^ALLOWED_CHAT_ID=[0-9]' .env && grep -q '^DASHBOARD_TOKEN=[a-f0-9]\{48,\}' .env && grep -q '^DB_ENCRYPTION_KEY=[a-f0-9]\{64\}' .env && grep -q '^DASHBOARD_PORT=3141' .env && grep -q '^GOOGLE_API_KEY=..*' .env && grep -q '^GROQ_API_KEY=..*' .env && grep -q '^ELEVENLABS_API_KEY=..*' .env && grep -q '^ELEVENLABS_VOICE_ID=..*' .env && ! grep -q '^ANTHROPIC_API_KEY=..*' .env && ! grep -q '^WARROOM_ENABLED=true' .env && ! grep -q '^SLACK_USER_TOKEN=..*' .env && git check-ignore .env && npm run build && test -f dist/index.js</automated>
@@ -242,6 +259,46 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
   <done>.env matches D-10 spec, OAuth-only auth confirmed (no ANTHROPIC_API_KEY), no deferred keys leaked, npm run build completes with zero errors, dist/index.js exists.</done>
 </task>
 
+<task type="auto">
+  <name>Task 4: Align REQUIREMENTS.md FOUN-04 text with D-09</name>
+  <files>.planning/REQUIREMENTS.md</files>
+  <read_first>
+    - .planning/REQUIREMENTS.md (line ~13, FOUN-04 entry)
+    - .planning/phases/01-foundation/01-CONTEXT.md (D-09 text)
+  </read_first>
+  <action>
+    The original REQUIREMENTS.md FOUN-04 text reads:
+
+    > `FOUN-04: .env configured with all required vars (ANTHROPIC_API_KEY, bot tokens, DB encryption key, dashboard token)`
+
+    D-09 explicitly defers ANTHROPIC_API_KEY to Phase 7 (VPS-only). The literal FOUN-04 text now conflicts with the locked decision. This task aligns the requirement text with D-09 so there is no documentation drift.
+
+    Edit `.planning/REQUIREMENTS.md` line ~13 (the FOUN-04 bullet) to read exactly:
+
+    > `FOUN-04: .env configured with required vars per D-10 (bot token, chat ID, dashboard token, DB encryption key, dashboard port, and pre-wired optional Gemini/Groq/ElevenLabs keys). ANTHROPIC_API_KEY deferred to Phase 7 (VPS-only) per D-09.`
+
+    Do NOT modify any other requirement entry. Do NOT touch the traceability table. Do NOT change FOUN-04's status from `Pending`.
+
+    After editing, commit the REQUIREMENTS.md change with exactly this commit message:
+    ```
+    docs: align FOUN-04 with D-09 (local OAuth)
+    ```
+    (The commit includes only `.planning/REQUIREMENTS.md`. Other files in this plan — `.env`, `node_modules/`, `dist/` — are gitignored or not committed in Phase 1.)
+  </action>
+  <verify>
+    <automated>grep -q 'FOUN-04.*per D-10' .planning/REQUIREMENTS.md && grep -q 'ANTHROPIC_API_KEY deferred to Phase 7' .planning/REQUIREMENTS.md && ! grep -q 'FOUN-04.*configured with all required vars (ANTHROPIC_API_KEY' .planning/REQUIREMENTS.md && git log --oneline -1 -- .planning/REQUIREMENTS.md | grep -q 'align FOUN-04 with D-09'</automated>
+  </verify>
+  <acceptance_criteria>
+    - `grep -c 'FOUN-04.*per D-10' .planning/REQUIREMENTS.md` returns ≥ 1 (new phrasing present)
+    - `grep -c 'ANTHROPIC_API_KEY deferred to Phase 7' .planning/REQUIREMENTS.md` returns ≥ 1 (divergence explicit)
+    - `grep -c 'FOUN-04.*configured with all required vars (ANTHROPIC_API_KEY' .planning/REQUIREMENTS.md` returns 0 (old text removed)
+    - `git log --oneline -1 -- .planning/REQUIREMENTS.md` shows a commit with subject containing `align FOUN-04 with D-09`
+    - Commit touches only `.planning/REQUIREMENTS.md` (no unintended files): `git show --stat HEAD -- .planning/REQUIREMENTS.md` shows 1 file changed
+    - Traceability table entry for FOUN-04 is unchanged: `grep -c '| FOUN-04 | Phase 1 | Pending |' .planning/REQUIREMENTS.md` returns `1`
+  </acceptance_criteria>
+  <done>REQUIREMENTS.md FOUN-04 text is consistent with D-09, committed with the specified message. No other entries touched.</done>
+</task>
+
 </tasks>
 
 <threat_model>
@@ -260,7 +317,7 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
 | T-01-09 | Information disclosure | .env committed to git | mitigate | Acceptance `git check-ignore .env` must exit 0; `git ls-files .env` must be empty. Existing .gitignore contains .env (verify). |
 | T-01-10 | Information disclosure | Secrets logged by setup.ts | accept | Wizard prints ok/warn status only; does not echo token values. Source-verified. |
 | T-01-11 | Tampering | DB_ENCRYPTION_KEY weak entropy | mitigate | Wizard uses `crypto.randomBytes(32)` — 256 bits. Acceptance checks 64-hex-char length. |
-| T-01-12 | Elevation of privilege | ANTHROPIC_API_KEY leak path on local Mac | mitigate | D-09: no ANTHROPIC_API_KEY in Phase 1 .env. Absence explicitly asserted in acceptance criteria. |
+| T-01-12 | Elevation of privilege | ANTHROPIC_API_KEY leak path on local Mac | mitigate | D-09: no ANTHROPIC_API_KEY in Phase 1 .env. Absence explicitly asserted in acceptance criteria. Task 4 aligns REQUIREMENTS.md text. |
 | T-01-13 | Spoofing | Invalid TELEGRAM_BOT_TOKEN | mitigate | Wizard calls `https://api.telegram.org/bot{TOKEN}/getMe`; Plan 05 re-verifies on send. |
 | T-01-14 | Tampering | Build cache stale vs .env changes | mitigate | Task 3 runs `npm run build` after .env write to ensure dist/ is current. |
 </threat_model>
@@ -273,13 +330,14 @@ Output: `.env` at repo root with D-10 keys populated, `node_modules/` installed,
 - `npm install` completed, `node_modules/` populated
 - `npm run build` exits 0; `dist/index.js` exists and passes `node --check`
 - `npm run typecheck` exits 0
+- REQUIREMENTS.md FOUN-04 text matches D-09 (Task 4 commit present)
 </verification>
 
 <success_criteria>
 FOUN-03 satisfied: npm dependencies installed, TypeScript compiles without errors.
-FOUN-04 satisfied: .env configured with all required Phase 1 vars per D-10 (bot token, ALLOWED_CHAT_ID, DASHBOARD_TOKEN, DB_ENCRYPTION_KEY, voice keys, Gemini key). Note: FOUN-04 original text mentions `ANTHROPIC_API_KEY` — D-09 explicitly omits this locally; Phase 7 will add for VPS. Plan summary must document this divergence.
+FOUN-04 satisfied per the corrected text: .env configured with all required Phase 1 vars per D-10 (bot token, chat ID, dashboard token, DB encryption key, dashboard port, voice keys, Gemini key). ANTHROPIC_API_KEY divergence from original FOUN-04 text reconciled in Task 4 by updating REQUIREMENTS.md to match D-09.
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/01-foundation/01-03-SUMMARY.md` noting: exact .env key set written, ANTHROPIC_API_KEY divergence from FOUN-04 text (D-09 rationale), any wizard handshake with Plan 05 (who ran first).
+After completion, create `.planning/phases/01-foundation/01-03-SUMMARY.md` noting: exact .env key set written, ANTHROPIC_API_KEY posture (OAuth-local per D-09), REQUIREMENTS.md FOUN-04 text update (Task 4 commit SHA), any wizard handshake with Plan 05 (who ran first).
 </output>

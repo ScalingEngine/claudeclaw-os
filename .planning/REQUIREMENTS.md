@@ -10,7 +10,7 @@
 - [ ] **FOUN-01**: Fork configured with noah/main branch and upstream remote for fast-forward merges
 - [ ] **FOUN-02**: ~/.claudeclaw/ overlay directory created with Noah-specific CLAUDE.md, agent configs, and hooks
 - [ ] **FOUN-03**: npm dependencies installed and TypeScript project compiles without errors
-- [ ] **FOUN-04**: .env configured with all required vars (ANTHROPIC_API_KEY, bot tokens, DB encryption key, dashboard token)
+- [ ] **FOUN-04**: .env configured with required vars per D-10 (bot token, chat ID, dashboard token, DB encryption key, dashboard port, and pre-wired optional Gemini/Groq/ElevenLabs keys). ANTHROPIC_API_KEY deferred to Phase 7 (VPS-only) per D-09.
 - [ ] **FOUN-05**: Dashboard loads on localhost:3141 and responds to health check
 - [ ] **FOUN-06**: Main Telegram bot responds to a test message from Noah's allowed chat ID
 
@@ -148,4 +148,4 @@
 
 ---
 *Requirements defined: 2026-04-17*
-*Last updated: 2026-04-15 after roadmap creation (traceability updated to 9-phase structure)*
+*Last updated: 2026-04-18 — FOUN-04 text aligned with D-09 (local OAuth, no ANTHROPIC_API_KEY in Phase 1)*

@@ -19,7 +19,7 @@ must_haves:
     - "~/.claudeclaw/ exists with Noah-specific CLAUDE.md, agents/ezra/ stub, and hooks/ directory"
     - "~/.claudeclaw/CLAUDE.md contains Ezra's real persona from NoahBrain (not the generic [YOUR ASSISTANT NAME] template)"
     - "~/.claudeclaw/agents/ezra/agent.yaml declares name: Ezra, telegram_bot_token_env: TELEGRAM_BOT_TOKEN, and a concrete model"
-    - "~/.claudeclaw/hooks/ is a literal empty directory (no files needed)"
+    - "~/.claudeclaw/hooks/ is a literal empty directory (no files needed) — honors D-04 'created empty'"
   artifacts:
     - path: "~/.claudeclaw/CLAUDE.md"
       provides: "Ezra persona + project instructions loaded by every Claude Code session"
@@ -32,12 +32,12 @@ must_haves:
       provides: "Per-agent persona pointer (Phase 2 fills; Phase 1 seeds from template)"
       contains: "Ezra"
     - path: "~/.claudeclaw/hooks"
-      provides: "Hooks directory scaffold (empty, ready for Phase 2+ wiring)"
+      provides: "Hooks directory scaffold (literally empty per D-04, ready for Phase 2+ wiring)"
   key_links:
     - from: "src/config.ts readEnvFile() + AGENT_ID resolver"
       to: "~/.claudeclaw/agents/ezra/agent.yaml"
-      via: "CLAUDECLAW_CONFIG env path (set by setup.ts in Plan 03)"
-      pattern: "CLAUDECLAW_CONFIG=~/.claudeclaw"
+      via: "CLAUDECLAW_CONFIG has a working default of ~/.claudeclaw (src/config.ts line 111-112); Phase 1 does NOT override this default"
+      pattern: "default ~/.claudeclaw"
     - from: "~/.claudeclaw/agents/ezra/agent.yaml"
       to: ".env TELEGRAM_BOT_TOKEN"
       via: "telegram_bot_token_env: TELEGRAM_BOT_TOKEN"
@@ -49,7 +49,7 @@ Seed the `~/.claudeclaw/` overlay directory on Noah's Mac with three concrete as
 
 Purpose: Phase 1 must leave the overlay in a state where Phase 2 can wire Ezra's Slack + Telegram channels without rewriting persona content. Real persona now = zero rework in Phase 2.
 
-Output: Overlay tree at `~/.claudeclaw/` with real Ezra persona seeded, agent stub filled, hooks directory created empty.
+Output: Overlay tree at `~/.claudeclaw/` with real Ezra persona seeded, agent stub filled, hooks directory created literally empty (D-04 honored).
 </objective>
 
 <execution_context>
@@ -89,6 +89,9 @@ model: claude-sonnet-4-6
      Per project CLAUDE.md: "Ezra (always-on, VPS systemd): ssh vps 'sudo systemctl {status|restart} ezra'" -->
 
 <!-- Pre-existing state (verified 2026-04-18): ~/.claudeclaw/ does NOT exist yet. Fresh create. -->
+
+<!-- CLAUDECLAW_CONFIG note: src/config.ts defaults the overlay path to ~/.claudeclaw (line 111-112).
+     Phase 1 does NOT set CLAUDECLAW_CONFIG in .env — the default is used. -->
 </interfaces>
 </context>
 
@@ -122,8 +125,7 @@ model: claude-sonnet-4-6
 <task type="auto">
   <name>Task 2: Create ~/.claudeclaw/ overlay tree with real Ezra persona</name>
   <files>
-    ~/.claudeclaw/CLAUDE.md,
-    ~/.claudeclaw/hooks/.gitkeep
+    ~/.claudeclaw/CLAUDE.md
   </files>
   <read_first>
     - /tmp/ezra-persona-source.md (produced by Task 1)
@@ -134,11 +136,13 @@ model: claude-sonnet-4-6
     Create the overlay skeleton and seed `~/.claudeclaw/CLAUDE.md` with Ezra's real persona.
 
     Exact steps:
-    1. Create the directory tree:
+    1. Create the directory tree (literally empty hooks/ per D-04 — no sentinel file):
        ```
        mkdir -p ~/.claudeclaw/agents/ezra
        mkdir -p ~/.claudeclaw/hooks
        ```
+       Do NOT create `.gitkeep`, `.keep`, or any other sentinel inside `~/.claudeclaw/hooks/`. The overlay is not under git, so a `.gitkeep` would be misleading. D-04 says "created empty" — honor it literally.
+
     2. Write `~/.claudeclaw/CLAUDE.md` with this structure (use Write tool, not heredoc):
 
        - Header: `# Ezra — Noah's Main Agent (ClaudeClaw)`
@@ -151,24 +155,19 @@ model: claude-sonnet-4-6
 
        File MUST be ≥ 40 lines and MUST contain the literal token `Ezra` in at least two distinct locations (heading + persona body).
 
-    3. Create the empty hooks directory sentinel:
-       ```
-       touch ~/.claudeclaw/hooks/.gitkeep
-       ```
-       (`.gitkeep` is a marker file only — the overlay is not inside the repo, but the marker makes the directory visible to `ls -la` and makes intent explicit per D-04: "hooks/ created empty, no wiring".)
-
-    4. Remove `/tmp/ezra-persona-source.md` after use to avoid leaving persona content in /tmp:
+    3. Remove `/tmp/ezra-persona-source.md` after use to avoid leaving persona content in /tmp:
        ```
        rm -f /tmp/ezra-persona-source.md
        ```
   </action>
   <verify>
-    <automated>test -d ~/.claudeclaw && test -f ~/.claudeclaw/CLAUDE.md && test -d ~/.claudeclaw/hooks && grep -q 'Ezra' ~/.claudeclaw/CLAUDE.md && [ "$(wc -l < ~/.claudeclaw/CLAUDE.md)" -ge 40 ] && ! test -f /tmp/ezra-persona-source.md</automated>
+    <automated>test -d ~/.claudeclaw && test -f ~/.claudeclaw/CLAUDE.md && test -d ~/.claudeclaw/hooks && [ "$(ls -A ~/.claudeclaw/hooks 2>/dev/null | wc -l | tr -d ' ')" = "0" ] && grep -q 'Ezra' ~/.claudeclaw/CLAUDE.md && [ "$(wc -l < ~/.claudeclaw/CLAUDE.md)" -ge 40 ] && ! test -f /tmp/ezra-persona-source.md</automated>
   </verify>
   <acceptance_criteria>
     - `test -d ~/.claudeclaw` passes (directory exists)
     - `test -f ~/.claudeclaw/CLAUDE.md` passes
     - `test -d ~/.claudeclaw/hooks` passes
+    - `ls -A ~/.claudeclaw/hooks` produces NO output (directory is literally empty — D-04 honored; no `.gitkeep`, no `.keep`, no hidden files)
     - `wc -l < ~/.claudeclaw/CLAUDE.md` outputs a number ≥ 40
     - `grep -c 'Ezra' ~/.claudeclaw/CLAUDE.md` outputs ≥ 2
     - `grep -q '\[YOUR ASSISTANT NAME\]' ~/.claudeclaw/CLAUDE.md` returns nonzero (placeholder NOT present)
@@ -177,7 +176,7 @@ model: claude-sonnet-4-6
     - `test -f /tmp/ezra-persona-source.md` returns nonzero (temp file cleaned up)
     - Nothing under `~/.claudeclaw/` is tracked by git (`git status` in repo root does not list `.claudeclaw`)
   </acceptance_criteria>
-  <done>Overlay exists with real Ezra persona, hooks dir present empty, no placeholder text remains, temp persona file cleaned up.</done>
+  <done>Overlay exists with real Ezra persona, hooks dir present and literally empty (D-04 honored), no placeholder text remains, temp persona file cleaned up.</done>
 </task>
 
 <task type="auto">
@@ -281,7 +280,7 @@ model: claude-sonnet-4-6
 
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
-| T-01-05 | Information disclosure | `/tmp/ezra-persona-source.md` | mitigate | Delete file immediately after use (Task 2 step 4). |
+| T-01-05 | Information disclosure | `/tmp/ezra-persona-source.md` | mitigate | Delete file immediately after use (Task 2 step 3). |
 | T-01-06 | Information disclosure | Overlay persona committed by mistake | mitigate | Overlay lives at `~/.claudeclaw/` outside repo; acceptance criteria includes `git status` absence check. |
 | T-01-07 | Tampering | Agent config read by ClaudeClaw runtime | mitigate | `js-yaml` parse check in acceptance criteria ensures file is valid YAML before runtime loads it. |
 | T-01-08 | Repudiation | Placeholder bleed-through | mitigate | Acceptance grep for `[YOUR ASSISTANT NAME]` / `[YOUR NAME]` / `[Agent Name]` placeholders returning zero matches. |
@@ -289,6 +288,7 @@ model: claude-sonnet-4-6
 
 <verification>
 - `~/.claudeclaw/` directory tree exists with CLAUDE.md + agents/ezra/{agent.yaml,CLAUDE.md} + hooks/
+- `~/.claudeclaw/hooks/` is literally empty (no `.gitkeep` sentinel — D-04 honored)
 - Ezra persona is real (not placeholder), ≥ 40 lines
 - `agent.yaml` has concrete `name: Ezra`, `telegram_bot_token_env: TELEGRAM_BOT_TOKEN`, `model: claude-sonnet-4-6`
 - Obsidian block is commented (Phase 3 will uncomment)
@@ -296,9 +296,9 @@ model: claude-sonnet-4-6
 </verification>
 
 <success_criteria>
-FOUN-02 satisfied: `~/.claudeclaw/` overlay directory created with Noah-specific CLAUDE.md, at least one agent config stub, and a hooks directory. D-03, D-04, D-05 fully implemented.
+FOUN-02 satisfied: `~/.claudeclaw/` overlay directory created with Noah-specific CLAUDE.md, at least one agent config stub, and a hooks directory (literally empty per D-04). D-03, D-04, D-05 fully implemented.
 </success_criteria>
 
 <output>
-After completion, create `.planning/phases/01-foundation/01-02-SUMMARY.md` noting: persona source used (VPS path / paste / local), default model selected, obsidian-block disposition.
+After completion, create `.planning/phases/01-foundation/01-02-SUMMARY.md` noting: persona source used (VPS path / paste / local), default model selected, obsidian-block disposition, confirmation that hooks/ is literally empty (D-04).
 </output>
