@@ -28,7 +28,21 @@ const AGENT_ID = agentFlagIndex !== -1 ? process.argv[agentFlagIndex + 1] : MAIN
 process.env.CLAUDECLAW_AGENT_ID = AGENT_ID;
 
 if (AGENT_ID !== MAIN_AGENT_ID) {
-  const agentConfig = loadAgentConfig(AGENT_ID);
+  let agentConfig;
+  try {
+    agentConfig = loadAgentConfig(AGENT_ID);
+  } catch (err) {
+    // D-26 graceful degradation: a specialist with a missing bot token
+    // (or any agent-config error) exits cleanly with status 0 instead of
+    // crash-looping. The unit will stop, NOT auto-restart, and the user
+    // can fix the .env then `systemctl --user restart claudeclaw-<id>`.
+    // Without this, every fresh fleet member with a missing token burned
+    // 12+ restart attempts/min.
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[agent-${AGENT_ID}] config error: ${msg}`);
+    console.error(`[agent-${AGENT_ID}] Bot disabled. Add the env var, then restart this unit.`);
+    process.exit(0);
+  }
   const agentDir = resolveAgentDir(AGENT_ID);
   const claudeMdPath = resolveAgentClaudeMd(AGENT_ID);
   let systemPrompt: string | undefined;
