@@ -1141,7 +1141,7 @@ const rosterById = new Map();
 let pinnedAgent = null;
 
 function agentAccent(id) {
-  if (['main','research','comms','content','ops'].includes(id)) return 'accent-' + id;
+  if (['ezra','vera','poe','cole','hopper','archie'].includes(id)) return 'accent-' + id;
   return 'accent-default';
 }
 function agentInitials(name) {
@@ -3138,11 +3138,12 @@ async function runWarmupIntro(rosterForIntro) {
 function getRoster() {
   if (roster && roster.length) return roster;
   return [
-    { id: 'main', name: 'Main' },
-    { id: 'research', name: 'Research' },
-    { id: 'comms', name: 'Comms' },
-    { id: 'content', name: 'Content' },
-    { id: 'ops', name: 'Ops' },
+    { id: 'ezra', name: 'Ezra' },
+    { id: 'vera', name: 'Vera' },
+    { id: 'poe', name: 'Poe' },
+    { id: 'cole', name: 'Cole' },
+    { id: 'hopper', name: 'Hopper' },
+    { id: 'archie', name: 'Archie' },
   ];
 }
 

@@ -14,6 +14,7 @@
 
 import { randomBytes } from 'crypto';
 
+import { MAIN_AGENT_ID } from './config.js';
 import {
   initDatabase,
   createMissionTask,
@@ -49,7 +50,7 @@ const priorityArg = priorityFlagIdx !== -1
   : 5;
 
 // Who created this task
-const createdBy = process.env.CLAUDECLAW_AGENT_ID ?? 'main';
+const createdBy = process.env.CLAUDECLAW_AGENT_ID ?? MAIN_AGENT_ID;
 
 // Clean argv: remove all flag pairs
 const flagIndices = new Set<number>();

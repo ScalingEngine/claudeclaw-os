@@ -703,25 +703,25 @@ export function getWarRoomHtml(token: string, chatId: string, warroomPort: numbe
   <div class="table-wrap">
     <div class="table-surface"></div>
     <div class="table-rim"></div>
-    <div class="stage-avatar" data-agent="main" style="--seat-x:0px;--seat-y:-150px">
-      <img src="/api/agents/main/avatar?token=${safeToken}" alt="Main">
-      <div class="stage-nameplate">MAIN</div>
+    <div class="stage-avatar" data-agent="ezra" style="--seat-x:0px;--seat-y:-150px">
+      <img src="/api/agents/ezra/avatar?token=${safeToken}" alt="Ezra">
+      <div class="stage-nameplate">EZRA</div>
     </div>
-    <div class="stage-avatar" data-agent="research" style="--seat-x:-250px;--seat-y:-40px">
-      <img src="/api/agents/research/avatar?token=${safeToken}" alt="Research">
-      <div class="stage-nameplate">RESEARCH</div>
+    <div class="stage-avatar" data-agent="vera" style="--seat-x:-250px;--seat-y:-40px">
+      <img src="/api/agents/vera/avatar?token=${safeToken}" alt="Vera">
+      <div class="stage-nameplate">VERA</div>
     </div>
-    <div class="stage-avatar" data-agent="comms" style="--seat-x:250px;--seat-y:-40px">
-      <img src="/api/agents/comms/avatar?token=${safeToken}" alt="Comms">
-      <div class="stage-nameplate">COMMS</div>
+    <div class="stage-avatar" data-agent="poe" style="--seat-x:250px;--seat-y:-40px">
+      <img src="/api/agents/poe/avatar?token=${safeToken}" alt="Poe">
+      <div class="stage-nameplate">POE</div>
     </div>
-    <div class="stage-avatar" data-agent="content" style="--seat-x:-165px;--seat-y:135px">
-      <img src="/api/agents/content/avatar?token=${safeToken}" alt="Content">
-      <div class="stage-nameplate">CONTENT</div>
+    <div class="stage-avatar" data-agent="cole" style="--seat-x:-165px;--seat-y:135px">
+      <img src="/api/agents/cole/avatar?token=${safeToken}" alt="Cole">
+      <div class="stage-nameplate">COLE</div>
     </div>
-    <div class="stage-avatar" data-agent="ops" style="--seat-x:165px;--seat-y:135px">
-      <img src="/api/agents/ops/avatar?token=${safeToken}" alt="Ops">
-      <div class="stage-nameplate">OPS</div>
+    <div class="stage-avatar" data-agent="hopper" style="--seat-x:165px;--seat-y:135px">
+      <img src="/api/agents/hopper/avatar?token=${safeToken}" alt="Hopper">
+      <div class="stage-nameplate">HOPPER</div>
     </div>
   </div>
 </div>
@@ -1013,7 +1013,7 @@ async function setMode(mode, el) {
   // Meeting is live — tear down and reconnect.
   var label = mode === 'auto' ? 'Hand Up' : 'Direct';
   addTranscriptEntry('system', 'Switching to ' + label + ' mode...');
-  await reloadMeetingAfterRespawn(label, pinnedAgent || 'main');
+  await reloadMeetingAfterRespawn(label, pinnedAgent || 'ezra');
 }
 
 // Tear down the active Pipecat client, wait for the warroom server to
@@ -1095,7 +1095,7 @@ async function reloadMeetingAfterRespawn(statusLabel, targetAgent) {
           if (d && d.final) addTranscriptEntry('You', d.text);
         },
         onBotTranscript: function(d) {
-          if (d) addTranscriptEntry(statusLabel, d.text || '', targetAgent || 'main');
+          if (d) addTranscriptEntry(statusLabel, d.text || '', targetAgent || 'ezra');
         },
         onServerMessage: function(msg) { handleServerMessage(msg); },
         onError: function(err) {
@@ -1352,7 +1352,7 @@ async function togglePin(agentId) {
   armSwitchingFailsafe(25000);
   try {
     var targetAgent;
-    if (pinnedAgent === agentId && agentId !== 'main') {
+    if (pinnedAgent === agentId && agentId !== 'ezra') {
       // Clicking the currently-pinned non-main agent again unpins back to main
       targetAgent = null;
     } else {
@@ -1479,7 +1479,7 @@ async function togglePin(agentId) {
           if (d && d.final) addTranscriptEntry('You', d.text);
         },
         onBotTranscript: function(d) {
-          if (d) addTranscriptEntry(statusLabel, d.text || '', targetAgent || 'main');
+          if (d) addTranscriptEntry(statusLabel, d.text || '', targetAgent || 'ezra');
         },
         onServerMessage: function(msg) { handleServerMessage(msg); },
         onError: function(err) {
@@ -1756,7 +1756,7 @@ async function toggleMeeting() {
         fetch(API_BASE + '/api/warroom/meeting/start?token=' + TOKEN, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: currentMode, agent: pinnedAgent || 'main' }),
+          body: JSON.stringify({ mode: currentMode, agent: pinnedAgent || 'ezra' }),
         }).then(function(r){ return r.json(); }).then(function(d){
           if (d && d.meetingId) currentMeetingId = d.meetingId;
         }).catch(function(){});
@@ -1852,7 +1852,7 @@ async function toggleMeeting() {
                       },
                       onBotReady: function() {},
                       onUserTranscript: function(data) { if (data && data.final) addTranscriptEntry('You', data.text); },
-                      onBotTranscript: function(data) { if (data) addTranscriptEntry('Agent', data.text || '', 'main'); },
+                      onBotTranscript: function(data) { if (data) addTranscriptEntry('Agent', data.text || '', 'ezra'); },
                       onServerMessage: function(msg) { handleServerMessage(msg); },
                       onError: function(err) { console.error('[WarRoom] Reconnect error:', err); },
                     },
@@ -1883,7 +1883,7 @@ async function toggleMeeting() {
               }
             },
             onBotTranscript: function(data) {
-              if (data) addTranscriptEntry('Agent', data.text || '', 'main');
+              if (data) addTranscriptEntry('Agent', data.text || '', 'ezra');
             },
             onServerMessage: function(msg) { handleServerMessage(msg); },
             onError: function(error) {

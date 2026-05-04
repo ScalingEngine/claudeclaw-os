@@ -1,3 +1,5 @@
+import { MAIN_AGENT_ID } from './config.js';
+
 export function getDashboardHtml(token: string, chatId: string, warroomEnabled = false): string {
 const WARROOM_ENABLED = warroomEnabled;
   return `<!DOCTYPE html>
@@ -255,7 +257,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="meet-agent-select" style="background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;min-width:110px">
-        <option value="main">Main</option>
+        <option value="${MAIN_AGENT_ID}">Ezra</option>
       </select>
       <input type="text" id="meet-url-input" placeholder="Paste Meet URL, or leave empty to auto-read clipboard"
         style="flex:1;min-width:220px;background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;font-family:ui-monospace,monospace">
@@ -276,7 +278,7 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="meet-daily-agent-select" style="background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;min-width:110px">
-        <option value="main">Main</option>
+        <option value="${MAIN_AGENT_ID}">Ezra</option>
       </select>
       <select id="meet-daily-mode-select" style="background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;min-width:100px">
         <option value="direct">Direct</option>
@@ -845,7 +847,7 @@ async function loadTasks() {
     }
     c.innerHTML = data.tasks.map(t => {
       const statusCls = t.status === 'running' ? 'pill-running' : t.status === 'active' ? 'pill-active' : 'pill-paused';
-      const agentBadge = t.agent_id && t.agent_id !== 'main' ? '<span class="text-xs text-gray-500 ml-2">[' + t.agent_id + ']</span>' : '';
+      const agentBadge = t.agent_id && t.agent_id !== '${MAIN_AGENT_ID}' ? '<span class="text-xs text-gray-500 ml-2">[' + t.agent_id + ']</span>' : '';
       const lastStatusIcon = t.last_status === 'success' ? '<span class="last-success" title="Last run succeeded">&#10003;</span> ' : t.last_status === 'failed' ? '<span class="last-failed" title="Last run failed">&#10007;</span> ' : t.last_status === 'timeout' ? '<span class="last-timeout" title="Last run timed out">&#9200;</span> ' : '';
       const lastResult = t.last_result ? '<details class="mt-2"><summary class="text-xs text-gray-500">' + lastStatusIcon + 'Last result</summary><pre class="text-xs text-gray-400 mt-1 whitespace-pre-wrap break-words">' + escapeHtml(t.last_result) + '</pre></details>' : '';
       const runningInfo = t.status === 'running' && t.started_at ? '<span class="text-xs text-blue-400 ml-2">running for ' + elapsed(t.started_at) + '</span>' : '';
@@ -1211,17 +1213,17 @@ function openNewMeet() {
 
 async function loadMeetAgentOptions() {
   // Populates the avatar + daily mode dropdowns from the /api/agents
-  // endpoint. Always includes 'main' at the top.
+  // endpoint. Always includes the orchestrator (Ezra) at the top.
   const selAvatar = document.getElementById('meet-agent-select');
   const selDaily = document.getElementById('meet-daily-agent-select');
   if (!selAvatar && !selDaily) return;
   try {
     const data = await api('/api/agents');
-    const ids = new Set(['main']);
+    const ids = new Set(['${MAIN_AGENT_ID}']);
     if (data && Array.isArray(data.agents)) {
       for (const a of data.agents) if (a && a.id) ids.add(a.id);
     }
-    const sorted = ['main', ...[...ids].filter(function(x){ return x !== 'main'; }).sort()];
+    const sorted = ['${MAIN_AGENT_ID}', ...[...ids].filter(function(x){ return x !== '${MAIN_AGENT_ID}'; }).sort()];
     const optionsHtml = sorted.map(function(id) {
       const label = id.charAt(0).toUpperCase() + id.slice(1);
       return '<option value="' + id + '">' + label + '</option>';
@@ -1497,7 +1499,7 @@ async function loadAgents() {
       const statusText = a.running ? 'live' : 'off';
       const modelOpts = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5'];
       const modelShort = function(m) { return {'claude-opus-4-6':'Opus','claude-sonnet-4-6':'Sonnet','claude-sonnet-4-5':'Sonnet 4.5','claude-haiku-4-5':'Haiku'}[m] || m; };
-      const currentModel = a.model || (a.id === 'main' ? 'claude-opus-4-6' : 'claude-sonnet-4-6');
+      const currentModel = a.model || (a.id === '${MAIN_AGENT_ID}' ? 'claude-opus-4-6' : 'claude-sonnet-4-6');
       const modelLabel = modelShort(currentModel);
       const modelSelect = '<div class="model-picker" data-agent="' + a.id + '" onclick="event.stopPropagation();toggleModelPicker(this)">' +
         '<span class="model-current">' + modelLabel + ' <span style="font-size:8px;opacity:0.5">&#9662;</span></span>' +
@@ -1633,8 +1635,8 @@ async function toggleAgentDetail(agentId) {
       }).join('');
     }
 
-    // Agent management controls (not for main)
-    if (agentId !== 'main') {
+    // Agent management controls (not for the orchestrator)
+    if (agentId !== '${MAIN_AGENT_ID}') {
       html += '<div class="flex gap-2 mt-4 pt-3" style="border-top:1px solid #2a2a2a">';
       if (agent && agent.running) {
         html += '<button data-agent="' + agentId + '" data-act="stop" onclick="agentModalAction(this.dataset.agent,this.dataset.act)" style="flex:1;background:#1a1a1a;color:#f87171;border:1px solid #7f1d1d;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer">Stop</button>';
@@ -2537,7 +2539,7 @@ function switchAgentTab(agentId, el) {
 // Session Info
 async function loadSessionInfo() {
   try {
-    const agentId = activeAgentTab === 'all' ? 'main' : activeAgentTab;
+    const agentId = activeAgentTab === 'all' ? '${MAIN_AGENT_ID}' : activeAgentTab;
     const [health, tokens] = await Promise.all([
       api('/api/health?chatId=' + CHAT_ID),
       api('/api/agents/' + agentId + '/tokens'),

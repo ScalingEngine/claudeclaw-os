@@ -1,4 +1,4 @@
-import { agentObsidianConfig, GOOGLE_API_KEY, MEMORY_NUDGE_INTERVAL_TURNS, MEMORY_NUDGE_INTERVAL_HOURS } from './config.js';
+import { agentObsidianConfig, GOOGLE_API_KEY, MAIN_AGENT_ID, MEMORY_NUDGE_INTERVAL_TURNS, MEMORY_NUDGE_INTERVAL_HOURS } from './config.js';
 import {
   batchUpdateMemoryRelevance,
   decayMemories,
@@ -62,7 +62,7 @@ export interface BuildMemoryContextOpts {
 export async function buildMemoryContext(
   chatId: string,
   userMessage: string,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
   opts: BuildMemoryContextOpts = {},
 ): Promise<MemoryContextResult> {
   const {
@@ -249,7 +249,7 @@ export function saveConversationTurn(
   userMessage: string,
   claudeResponse: string,
   sessionId?: string,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): void {
   try {
     // Always log full conversation to conversation_log (for /respin)
@@ -340,7 +340,7 @@ ${memoryList}`;
  * Check whether a memory nudge should be injected into the context.
  * Returns true if enough turns or time have passed since the last memory save.
  */
-export function shouldNudgeMemory(chatId: string, agentId = 'main'): boolean {
+export function shouldNudgeMemory(chatId: string, agentId: string = MAIN_AGENT_ID): boolean {
   const lastSave = getLastMemorySaveTime(chatId, agentId);
 
   // Never nudge if no memories have been saved yet (first conversation)

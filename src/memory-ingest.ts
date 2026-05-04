@@ -4,6 +4,7 @@ import { cosineSimilarity, embedText } from './embeddings.js';
 import { getMemoriesWithEmbeddings, saveStructuredMemoryAtomic } from './db.js';
 import { logger } from './logger.js';
 import { readEnvFile } from './env.js';
+import { MAIN_AGENT_ID } from './config.js';
 import { getScrubbedSdkEnv } from './security.js';
 
 // Callback for notifying when a high-importance memory is created.
@@ -162,7 +163,7 @@ export async function ingestConversationTurn(
   chatId: string,
   userMessage: string,
   assistantResponse: string,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): Promise<boolean> {
   // Hard filter: skip very short messages and commands
   if (userMessage.length <= 15 || userMessage.startsWith('/')) return false;

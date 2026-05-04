@@ -15,6 +15,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import fs from 'fs';
 import yaml from 'js-yaml';
+import { MAIN_AGENT_ID } from './config.js';
 import { readEnvFile } from './env.js';
 import { initDatabase, getSession, setSession } from './db.js';
 import { buildMemoryContext } from './memory.js';
@@ -36,7 +37,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 // Parse CLI args
 const args = process.argv.slice(2);
-let agentId = 'main';
+let agentId: string = MAIN_AGENT_ID;
 let message = '';
 let chatId = 'warroom';
 let quickMode = false;
@@ -92,12 +93,12 @@ async function main() {
     const sdkEnv = getScrubbedSdkEnv(secrets);
 
     // Validate agent ID format (prevent path traversal)
-    if (agentId !== 'main' && !/^[a-z][a-z0-9_-]{0,29}$/.test(agentId)) {
+    if (agentId !== MAIN_AGENT_ID && !/^[a-z][a-z0-9_-]{0,29}$/.test(agentId)) {
       throw new Error(`Invalid agent ID: ${agentId}`);
     }
 
     // Resolve agent directory and verify it's within the project
-    const agentDir = agentId === 'main'
+    const agentDir = agentId === MAIN_AGENT_ID
       ? PROJECT_ROOT
       : path.join(PROJECT_ROOT, 'agents', agentId);
     const resolved = path.resolve(agentDir);

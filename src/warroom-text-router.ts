@@ -7,12 +7,13 @@
  * loading, no settings sources: pure classifier mode.
  *
  * Failure tolerant: any thrown error, timeout (>8s), or unparseable JSON
- * falls back to a deterministic default (primary = pinnedAgent ?? 'main',
+ * falls back to a deterministic default (primary = pinnedAgent ?? MAIN_AGENT_ID,
  * interveners = []). The fallback also sets routerDegraded=true on the
  * decision so the UI can show a subtle "degraded routing" indicator.
  */
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { MAIN_AGENT_ID } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import { getScrubbedSdkEnv } from './security.js';
@@ -123,7 +124,7 @@ Your job is to pick who speaks this turn.
 
 Primary (one agent leads the response):
 - Compare the user's message to each agent's description. The single most relevant specialist leads.
-- When the topic is generic, triage-style, or doesn't map cleanly to a specialist → primary = "main".
+- When the topic is generic, triage-style, or doesn't map cleanly to a specialist → primary = "${MAIN_AGENT_ID}".
 - Social messages (thanks/ok/emoji) or truly unclear ones → primary = null.
 
 Interveners (0 to 2 others raise their hand):
@@ -196,7 +197,7 @@ function sanitizeDecision(
 
 export function routerFallback(ctx: RouterContext): RouterDecision {
   return {
-    primary: ctx.pinnedAgent ?? 'main',
+    primary: ctx.pinnedAgent ?? MAIN_AGENT_ID,
     interveners: [],
     reason: 'router unavailable — fell back to primary-only',
     routerDegraded: true,

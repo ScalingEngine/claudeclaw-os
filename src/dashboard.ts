@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server';
 
 import fs from 'fs';
 import path from 'path';
-import { AGENT_ID, ALLOWED_CHAT_ID, DASHBOARD_PORT, DASHBOARD_TOKEN, DASHBOARD_URL, PROJECT_ROOT, STORE_DIR, WHATSAPP_ENABLED, SLACK_USER_TOKEN, CONTEXT_LIMIT, agentDefaultModel, CLAUDECLAW_CONFIG } from './config.js';
+import { AGENT_ID, ALLOWED_CHAT_ID, DASHBOARD_PORT, DASHBOARD_TOKEN, DASHBOARD_URL, MAIN_AGENT_ID, PROJECT_ROOT, STORE_DIR, WHATSAPP_ENABLED, SLACK_USER_TOKEN, CONTEXT_LIMIT, agentDefaultModel, CLAUDECLAW_CONFIG } from './config.js';
 import crypto from 'crypto';
 import {
   getAllScheduledTasks,
@@ -115,7 +115,7 @@ import { killProcess, isProcessAlive, findProcessesByPattern } from './platform.
 
 async function classifyTaskAgent(prompt: string): Promise<string | null> {
   const agentIds = listAgentIds();
-  const validAgents = ['main', ...agentIds];
+  const validAgents = [MAIN_AGENT_ID, ...agentIds];
   const agentDescriptions = agentIds.map((id) => {
     try {
       const config = loadAgentConfig(id);
@@ -124,7 +124,7 @@ async function classifyTaskAgent(prompt: string): Promise<string | null> {
   });
 
   const classificationPrompt = `Given these agents and their roles:
-- main: Primary assistant, general tasks, anything that doesn't clearly fit another agent
+- ${MAIN_AGENT_ID}: Primary assistant, general tasks, anything that doesn't clearly fit another agent
 ${agentDescriptions.join('\n')}
 
 Which ONE agent is best suited for this task?
@@ -144,15 +144,15 @@ Reply with JSON: {"agent": "agent_id"}`;
   }
 
   // Fallback: Gemini. Wrapped so a 429 doesn't bubble up — we'd rather
-  // assign to 'main' than fail the request.
+  // assign to the orchestrator than fail the request.
   try {
     const response = await generateContent(classificationPrompt);
     const parsed = parseJsonResponse<{ agent: string }>(response);
     if (parsed?.agent && validAgents.includes(parsed.agent)) return parsed.agent;
   } catch (err) {
-    logger.warn({ err: err instanceof Error ? err.message : err }, 'Gemini classify failed, defaulting to main');
+    logger.warn({ err: err instanceof Error ? err.message : err }, 'Gemini classify failed, defaulting to orchestrator');
   }
-  return 'main';
+  return MAIN_AGENT_ID;
 }
 
 // Meeting id format: wr_<timestampBase36>_<6-hex-random>. Regex also allows
@@ -645,10 +645,10 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Return the dynamic agent list for the War Room UI to render cards.
   // Includes main + all configured agents with their display names.
   app.get('/api/warroom/agents', (c) => {
-    const ids = ['main', ...listAgentIds().filter((id) => id !== 'main')];
+    const ids = [MAIN_AGENT_ID, ...listAgentIds().filter((id) => id !== MAIN_AGENT_ID)];
     const agents = ids.map((id) => {
       try {
-        if (id === 'main') return { id: 'main', name: 'Main', description: 'General ops and triage' };
+        if (id === MAIN_AGENT_ID) return { id: MAIN_AGENT_ID, name: 'Ezra', description: 'Chief of staff -- orchestrator, briefs, blockers, handoffs' };
         const cfg = loadAgentConfig(id);
         return { id, name: cfg.name || id, description: cfg.description || '' };
       } catch {
@@ -662,7 +662,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   app.post('/api/warroom/meeting/start', async (c) => {
     const body: { id?: string; mode?: string; agent?: string } = await c.req.json().catch(() => ({}));
     const id = body.id || crypto.randomUUID();
-    createWarRoomMeeting(id, body.mode || 'direct', body.agent || 'main');
+    createWarRoomMeeting(id, body.mode || 'direct', body.agent || MAIN_AGENT_ID);
     return c.json({ ok: true, meetingId: id });
   });
 
@@ -699,7 +699,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Recompute on every call so newly-created agents become pinnable
   // without a dashboard restart. listAgentIds() reads the agent-configs
   // directory which the agent-create flow writes to synchronously.
-  const getValidPinAgents = (): Set<string> => new Set(['main', ...listAgentIds()]);
+  const getValidPinAgents = (): Set<string> => new Set([MAIN_AGENT_ID, ...listAgentIds()]);
 
   // Read current pin state from disk. Returns normalized defaults for
   // missing fields so callers can rely on both agent and mode being set.
@@ -747,11 +747,11 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     // the current pin file value. An empty body is a noop but still
     // respawns so the caller can force a reload.
     const current = readPinState();
-    const nextAgent = body.agent !== undefined ? body.agent : (current.agent ?? 'main');
+    const nextAgent = body.agent !== undefined ? body.agent : (current.agent ?? MAIN_AGENT_ID);
     const nextMode = body.mode !== undefined ? body.mode : current.mode;
 
     if (!getValidPinAgents().has(nextAgent)) {
-      return c.json({ ok: false, error: 'invalid agent; must be one of main, research, comms, content, ops' }, 400);
+      return c.json({ ok: false, error: `invalid agent; must be one of ${[...getValidPinAgents()].join(', ')}` }, 400);
     }
     if (!VALID_PIN_MODES.has(nextMode)) {
       return c.json({ ok: false, error: 'invalid mode; must be one of direct, auto' }, 400);
@@ -1332,7 +1332,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     // Return one row per known agent. Agents missing from voices.json get
     // a default Gemini voice suggestion from the pool so the UI can show
     // something reasonable without requiring the user to save first.
-    const knownAgents = ['main', ...listAgentIds().filter((id) => id !== 'main')];
+    const knownAgents = [MAIN_AGENT_ID, ...listAgentIds().filter((id) => id !== MAIN_AGENT_ID)];
     const usedGeminiVoices = new Set(
       Object.values(configured)
         .map((v) => v && typeof v === 'object' ? (v as { gemini_voice?: string }).gemini_voice : undefined)
@@ -1343,7 +1343,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       let geminiVoice = entry.gemini_voice;
       let isDefault = false;
       if (!geminiVoice) {
-        geminiVoice = agent === 'main' ? 'Charon' : pickDefaultGeminiVoice(usedGeminiVoices);
+        geminiVoice = agent === MAIN_AGENT_ID ? 'Charon' : pickDefaultGeminiVoice(usedGeminiVoices);
         usedGeminiVoices.add(geminiVoice);
         isDefault = true;
       }
@@ -1550,7 +1550,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
 
     // Validate agent if provided
     if (assignedAgent) {
-      const validAgents = ['main', ...listAgentIds()];
+      const validAgents = [MAIN_AGENT_ID, ...listAgentIds()];
       if (!validAgents.includes(assignedAgent)) {
         return c.json({ error: `Unknown agent: ${assignedAgent}. Valid: ${validAgents.join(', ')}` }, 400);
       }
@@ -1610,7 +1610,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     const body = await c.req.json<{ assigned_agent?: string }>();
     const newAgent = body?.assigned_agent?.trim();
     if (!newAgent) return c.json({ error: 'assigned_agent required' }, 400);
-    const validAgents = ['main', ...listAgentIds()];
+    const validAgents = [MAIN_AGENT_ID, ...listAgentIds()];
     if (!validAgents.includes(newAgent)) return c.json({ error: 'Unknown agent' }, 400);
     const ok = reassignMissionTask(id, newAgent);
     return c.json({ ok });
@@ -1700,7 +1700,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     if (!meetUrl || !MEET_URL_RE.test(meetUrl)) {
       return c.json({ ok: false, error: 'invalid meet_url (must match https://meet.google.com/...)' }, 400);
     }
-    const validAgents = new Set(['main', ...listAgentIds()]);
+    const validAgents = new Set([MAIN_AGENT_ID, ...listAgentIds()]);
     if (!validAgents.has(agent)) {
       return c.json({ ok: false, error: `unknown agent: ${agent}` }, 400);
     }
@@ -1728,7 +1728,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     if (mode !== 'direct' && mode !== 'auto') {
       return c.json({ ok: false, error: 'mode must be direct or auto' }, 400);
     }
-    const validAgents = new Set(['main', ...listAgentIds()]);
+    const validAgents = new Set([MAIN_AGENT_ID, ...listAgentIds()]);
     if (!validAgents.has(agent)) {
       return c.json({ ok: false, error: `unknown agent: ${agent}` }, 400);
     }
@@ -1909,9 +1909,9 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
         mainRunning = isProcessAlive(pid);
       } catch { /* not running */ }
     }
-    const mainStats = getAgentTokenStats('main');
+    const mainStats = getAgentTokenStats(MAIN_AGENT_ID);
     const allAgents = [
-      { id: 'main', name: 'Main', description: 'Primary ClaudeClaw bot', model: 'claude-opus-4-6', running: mainRunning, todayTurns: mainStats.todayTurns, todayCost: mainStats.todayCost, avatar_etag: avatarEtagForId('main') },
+      { id: MAIN_AGENT_ID, name: 'Ezra', description: 'Chief of staff -- orchestrator, primary ClaudeClaw bot', model: 'claude-opus-4-6', running: mainRunning, todayTurns: mainStats.todayTurns, todayCost: mainStats.todayCost, avatar_etag: avatarEtagForId(MAIN_AGENT_ID) },
       ...agents,
     ];
 
@@ -1963,7 +1963,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
         updated.push(id);
         // Yaml is now updated, but a sub-agent's already-running process
         // froze its model at startup. Flag for the UI to offer a restart.
-        if (id !== 'main') restartRequired.push(id);
+        if (id !== MAIN_AGENT_ID) restartRequired.push(id);
       } catch {}
     }
     return c.json({ ok: true, model, updated, restartRequired });
@@ -1980,7 +1980,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     if (!validModels.includes(model)) return c.json({ error: `Invalid model. Valid: ${validModels.join(', ')}` }, 400);
 
     try {
-      if (agentId === 'main') {
+      if (agentId === MAIN_AGENT_ID) {
         // Main applies in-memory immediately — no restart needed.
         const { setMainModelOverride } = await import('./bot.js');
         setMainModelOverride(model);
@@ -2081,11 +2081,11 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     const agentId = c.req.param('id');
     if (!/^[a-z0-9_-]+$/i.test(agentId)) return c.json({ error: 'invalid id' }, 400);
 
-    if (agentId === 'main') {
+    if (agentId === MAIN_AGENT_ID) {
       const mainClaude = resolveMainClaudeMdPath();
       const claudeMd = fs.existsSync(mainClaude) ? fs.readFileSync(mainClaude, 'utf-8') : '';
       return c.json({
-        agent_id: 'main',
+        agent_id: MAIN_AGENT_ID,
         claude_md: claudeMd,
         agent_yaml: '',
         bot_token_redacted: false,
@@ -2123,7 +2123,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     // tree. For sub-agents, the file goes into the agent's resolved dir
     // (which respects CLAUDECLAW_CONFIG override).
     let target: string;
-    if (agentId === 'main') {
+    if (agentId === MAIN_AGENT_ID) {
       target = resolveMainClaudeMdPath();
       // Make sure the parent dir exists — fresh installs may not have
       // created CLAUDECLAW_CONFIG yet.
@@ -2148,7 +2148,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       // bot without this in-memory update. Sub-agents don't need this:
       // the Agent SDK re-reads CLAUDE.md from cwd via settingSources on
       // every turn, so saves are hot-loaded automatically.
-      if (agentId === 'main') {
+      if (agentId === MAIN_AGENT_ID) {
         try {
           const { updateAgentSystemPrompt } = await import('./config.js');
           updateAgentSystemPrompt(body.content);
@@ -2167,7 +2167,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   app.put('/api/agents/:id/files/agent-yaml', async (c) => {
     const agentId = c.req.param('id');
     if (!/^[a-z0-9_-]+$/i.test(agentId)) return c.json({ error: 'invalid id' }, 400);
-    if (agentId === 'main') {
+    if (agentId === MAIN_AGENT_ID) {
       // Main is the host process — its config lives in .env, not yaml.
       return c.json({ error: 'main agent has no agent.yaml; edit .env directly' }, 400);
     }
@@ -2272,7 +2272,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
 
     // Resolve target path with the same rules the GET/PUT endpoints use.
     let target: string;
-    if (agentId === 'main') {
+    if (agentId === MAIN_AGENT_ID) {
       if (row.file_kind !== 'claudemd') return c.json({ error: 'main has no agent.yaml' }, 400);
       target = resolveMainClaudeMdPath();
       try { fs.mkdirSync(path.dirname(target), { recursive: true }); } catch {}
@@ -2291,7 +2291,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       // Same in-memory refresh as the PUT path — main's bot caches the
       // CLAUDE.md content at startup and only sees disk changes via this
       // setter.
-      if (agentId === 'main' && row.file_kind === 'claudemd') {
+      if (agentId === MAIN_AGENT_ID && row.file_kind === 'claudemd') {
         try {
           const { updateAgentSystemPrompt } = await import('./config.js');
           updateAgentSystemPrompt(row.content);
@@ -2325,11 +2325,11 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   });
 
   app.post('/api/agents/suggestions/refresh', async (c) => {
-    const liveAgents = ['main', ...listAgentIds()];
+    const liveAgents = [MAIN_AGENT_ID, ...listAgentIds()];
     const agentMeta: Array<{ id: string; description: string; rawCount: number; recentSummaries: string[] }> = [];
     for (const id of liveAgents) {
       let description = '';
-      if (id !== 'main') {
+      if (id !== MAIN_AGENT_ID) {
         try { description = loadAgentConfig(id).description || ''; } catch { /* skip */ }
       } else {
         description = 'Primary ClaudeClaw bot — general triage and routing';
@@ -2442,7 +2442,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       });
       inserted++;
     }
-    insertAuditLog('main', '', 'agent_suggestion_refresh', `inserted=${inserted} skipped=${skipped}`, false);
+    insertAuditLog(MAIN_AGENT_ID, '', 'agent_suggestion_refresh', `inserted=${inserted} skipped=${skipped}`, false);
     return c.json({ ok: true, inserted, skipped, suggestions: listActiveAgentSuggestions() });
   });
 
@@ -2451,7 +2451,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
     const ok = dismissAgentSuggestion(id);
     if (!ok) return c.json({ error: 'not found or already dismissed' }, 404);
-    insertAuditLog('main', '', 'agent_suggestion_dismiss', `id=${id}`, false);
+    insertAuditLog(MAIN_AGENT_ID, '', 'agent_suggestion_dismiss', `id=${id}`, false);
     return c.json({ ok: true });
   });
 
@@ -2460,7 +2460,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
     const ok = markAgentSuggestionActed(id);
     if (!ok) return c.json({ error: 'not found or already acted' }, 404);
-    insertAuditLog('main', '', 'agent_suggestion_acted', `id=${id}`, false);
+    insertAuditLog(MAIN_AGENT_ID, '', 'agent_suggestion_acted', `id=${id}`, false);
     return c.json({ ok: true });
   });
 
@@ -2528,7 +2528,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Activate an agent (install service + start)
   app.post('/api/agents/:id/activate', (c) => {
     const agentId = c.req.param('id');
-    if (agentId === 'main') return c.json({ error: 'Cannot activate main via this endpoint' }, 400);
+    if (agentId === MAIN_AGENT_ID) return c.json({ error: 'Cannot activate main via this endpoint' }, 400);
     const result = activateAgent(agentId);
     return c.json(result);
   });
@@ -2536,7 +2536,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Deactivate an agent (stop + uninstall service)
   app.post('/api/agents/:id/deactivate', (c) => {
     const agentId = c.req.param('id');
-    if (agentId === 'main') return c.json({ error: 'Cannot deactivate main via this endpoint' }, 400);
+    if (agentId === MAIN_AGENT_ID) return c.json({ error: 'Cannot deactivate main via this endpoint' }, 400);
     const result = deactivateAgent(agentId);
     return c.json(result);
   });
@@ -2544,7 +2544,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Restart an agent (kill + relaunch service)
   app.post('/api/agents/:id/restart', (c) => {
     const agentId = c.req.param('id');
-    if (agentId === 'main') return c.json({ error: 'Cannot restart main via this endpoint. Restart the main process manually.' }, 400);
+    if (agentId === MAIN_AGENT_ID) return c.json({ error: 'Cannot restart main via this endpoint. Restart the main process manually.' }, 400);
     const result = restartAgent(agentId);
     if (result.ok) {
       return c.json({ ok: true, message: `Agent ${agentId} restarted` });
@@ -2555,7 +2555,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // Delete an agent entirely
   app.delete('/api/agents/:id/full', (c) => {
     const agentId = c.req.param('id');
-    if (agentId === 'main') return c.json({ error: 'Cannot delete main' }, 400);
+    if (agentId === MAIN_AGENT_ID) return c.json({ error: 'Cannot delete main' }, 400);
     const result = deleteAgent(agentId);
     if (result.ok) {
       return c.json({ ok: true });
@@ -2628,7 +2628,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     // No mutable file and no bundled fallback. For sub-agents we can
     // try Telegram once (writes to mutable path on success). Main has
     // no bot token of its own here, so we don't attempt.
-    if (agentId !== 'main') {
+    if (agentId !== MAIN_AGENT_ID) {
       const fetched = await tryFetchTelegramAvatar(agentId);
       if (fetched) {
         const after = serve();
@@ -2790,7 +2790,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       if (value.length > 32) value = value.slice(0, 32);
     }
     setDashboardSetting(body.key, value);
-    insertAuditLog('main', '', 'dashboard_setting_change', `${body.key}=${value.slice(0, 80)}`, false);
+    insertAuditLog(MAIN_AGENT_ID, '', 'dashboard_setting_change', `${body.key}=${value.slice(0, 80)}`, false);
     return c.json({ ok: true, key: body.key, value });
   });
 

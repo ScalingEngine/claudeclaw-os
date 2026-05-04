@@ -30,7 +30,7 @@ echo "      VPS now has ${VPS_COUNT} skills"
 
 echo
 echo "[2/2] Restart ClaudeClaw fleet on ${VPS_HOST}"
-ssh "$VPS_HOST" "systemctl --user restart claudeclaw claudeclaw-ops claudeclaw-content claudeclaw-research claudeclaw-comms claudeclaw-code"
+ssh "$VPS_HOST" "systemctl --user restart claudeclaw-ezra claudeclaw-vera claudeclaw-poe claudeclaw-cole claudeclaw-hopper claudeclaw-archie"
 
 echo
 echo "Done. The Claude Agent SDK will pick up the new skills on next agent query."

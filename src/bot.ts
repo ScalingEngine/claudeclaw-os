@@ -12,6 +12,7 @@ import {
   DASHBOARD_PORT,
   DASHBOARD_TOKEN,
   DASHBOARD_URL,
+  MAIN_AGENT_ID,
   MAX_MESSAGE_LENGTH,
   activeBotToken,
   agentDefaultModel,
@@ -922,7 +923,7 @@ export function createBot(): Bot {
   // /start — simple greeting (auth-gated after setup)
   bot.command('start', (ctx) => {
     if (ALLOWED_CHAT_ID && !isAuthorised(ctx.chat!.id)) return;
-    if (AGENT_ID !== 'main') {
+    if (AGENT_ID !== MAIN_AGENT_ID) {
       return ctx.reply(`${AGENT_ID.charAt(0).toUpperCase() + AGENT_ID.slice(1)} agent online.`);
     }
     return ctx.reply('ClaudeClaw online. What do you need?');

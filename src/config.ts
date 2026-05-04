@@ -43,7 +43,25 @@ const envConfig = readEnvFile([
 
 // ── Multi-agent support ──────────────────────────────────────────────
 // These are mutable and overridden by index.ts when --agent is passed.
-export let AGENT_ID = 'main';
+
+/**
+ * Canonical ID of the orchestrator agent (the "main" / chief-of-staff bot).
+ *
+ * Historically hardcoded as the literal string `'main'` throughout the
+ * codebase. Renamed to a persona-based identifier on 2026-05-04 so the
+ * fleet uses one consistent name everywhere (dir, agent_id, persona name,
+ * bot username, systemd unit suffix). Keeping this as a single exported
+ * constant keeps the upstream-merge surface small: changes in the upstream
+ * fork that introduce new `'main'` literals become single-line conflicts
+ * resolved by referencing this constant.
+ *
+ * If you change the value, run the SQL migration in
+ * migrations/0001_rename_orchestrator_agent_id.sql to backfill historical
+ * rows in sessions / conversation_log / token_usage / hive_mind / audit_log.
+ */
+export const MAIN_AGENT_ID = 'ezra';
+
+export let AGENT_ID: string = MAIN_AGENT_ID;
 export let activeBotToken =
   process.env.TELEGRAM_BOT_TOKEN || envConfig.TELEGRAM_BOT_TOKEN || '';
 export let agentCwd: string | undefined; // undefined = use PROJECT_ROOT

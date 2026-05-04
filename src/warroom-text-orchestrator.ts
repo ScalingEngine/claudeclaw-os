@@ -26,7 +26,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { PROJECT_ROOT, CLAUDECLAW_CONFIG } from './config.js';
+import { MAIN_AGENT_ID, PROJECT_ROOT, CLAUDECLAW_CONFIG } from './config.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
@@ -77,9 +77,9 @@ export interface RosterAgent {
 }
 
 const MAIN_AGENT: RosterAgent = {
-  id: 'main',
-  name: 'Main',
-  description: 'General ops and triage',
+  id: MAIN_AGENT_ID,
+  name: 'Ezra',
+  description: 'Chief of staff -- orchestrator, briefs, blockers, handoffs',
 };
 
 /**
@@ -90,7 +90,7 @@ const MAIN_AGENT: RosterAgent = {
  */
 export function getRoster(): RosterAgent[] {
   const extras = listAllAgents()
-    .filter((a) => a.id !== 'main')
+    .filter((a) => a.id !== MAIN_AGENT_ID)
     .map((a) => ({ id: a.id, name: a.name, description: a.description }));
   return [MAIN_AGENT, ...extras];
 }
@@ -299,13 +299,13 @@ export async function handleTextTurn(
         type: 'status_update',
         turnId,
         phase: 'starting',
-        label: 'Starting Main…',
-        agentId: 'main',
+        label: 'Starting Ezra…',
+        agentId: MAIN_AGENT_ID,
       });
       decision = {
-        primary: 'main',
+        primary: MAIN_AGENT_ID,
         interveners: [],
-        reason: 'greeting → main',
+        reason: `greeting → ${MAIN_AGENT_ID}`,
         routerDegraded: false,
       };
     } else {
@@ -559,7 +559,7 @@ export async function warmupMeeting(): Promise<void> {
       // first real turn for each agent doesn't pay cold start.
       try {
         const ids = listAllAgents().map((a) => a.id);
-        if (ids.length > 0) prewarmAgentSDKs(['main', ...ids.filter((i) => i !== 'main')]);
+        if (ids.length > 0) prewarmAgentSDKs([MAIN_AGENT_ID, ...ids.filter((i) => i !== MAIN_AGENT_ID)]);
       } catch (err) {
         logger.warn({ err: err instanceof Error ? err.message : err }, 'agent prewarm fanout failed (non-fatal)');
       }
@@ -600,10 +600,10 @@ const AGENT_WARMUP_TIMEOUT_MS = 12_000;
 
 export async function warmupAgentSDK(agentId: string): Promise<void> {
   if (_warmupAgentDone.has(agentId)) return;
-  // 'main' is the host process itself — its SDK is already warm by
-  // virtue of running. Skip to avoid a noisy "config not found" error
-  // (main has no agents/main/agent.yaml).
-  if (agentId === 'main') { _warmupAgentDone.add(agentId); return; }
+  // The orchestrator (MAIN_AGENT_ID) is the host process itself -- its
+  // SDK is already warm by virtue of running. Skip to avoid a noisy
+  // "config not found" error (orchestrator has no agents/<id>/agent.yaml).
+  if (agentId === MAIN_AGENT_ID) { _warmupAgentDone.add(agentId); return; }
   const existing = _warmupAgentInFlight.get(agentId);
   if (existing) return existing;
 
@@ -851,7 +851,7 @@ function parseSlashCommand(text: string): SlashCommand | null {
 // just because it isn't canonical — the previous SLASH_MAX_SPEAKERS=5
 // cap silently dropped the 6th agent, which felt broken to users
 // adding new agents.
-const SLASH_CANONICAL_ORDER = ['research', 'ops', 'comms', 'content', 'main'];
+const SLASH_CANONICAL_ORDER = ['vera', 'hopper', 'poe', 'cole', 'archie', MAIN_AGENT_ID];
 
 // Hard ceiling. /standup runs sequentially, so total wall time scales
 // with speaker count. The dashboard watchdog gives each meeting turn
@@ -1339,14 +1339,14 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
     throw new Error(`runAgentTurn: meetingChatId must be the real Telegram chat id, got synthetic "${meetingChatId}"`);
   }
 
-  if (agentId !== 'main' && !/^[a-z][a-z0-9_-]{0,29}$/.test(agentId)) {
+  if (agentId !== MAIN_AGENT_ID && !/^[a-z][a-z0-9_-]{0,29}$/.test(agentId)) {
     throw new Error(`invalid agentId: ${agentId}`);
   }
 
   // For main, cwd = PROJECT_ROOT (loads the repo's CLAUDE.md). For others,
   // resolveAgentDir picks CLAUDECLAW_CONFIG/agents/<id> first, then falls
   // back to PROJECT_ROOT/agents/<id>. This is the fix for external agents.
-  const agentDir = agentId === 'main' ? PROJECT_ROOT : resolveAgentDir(agentId);
+  const agentDir = agentId === MAIN_AGENT_ID ? PROJECT_ROOT : resolveAgentDir(agentId);
 
   // Safety net: ensure the resolved dir lives within one of our roots.
   // CLAUDECLAW_CONFIG comes from config.ts (which applies defaults +
@@ -1365,7 +1365,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
   let agentModel: string | undefined;
   let warroomTools: string[] | undefined;
   try {
-    if (agentId !== 'main') {
+    if (agentId !== MAIN_AGENT_ID) {
       const cfg = loadAgentConfig(agentId);
       mcpAllowlist = cfg.mcpServers;
       agentModel = cfg.model;
@@ -1410,7 +1410,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
 - Don't wrap your answer in a full plan — just your piece of it.
 - TOOL HONESTY: If you say you'll do something that requires a tool (create a calendar event, send an email, write a file, post a message), you MUST invoke that tool in this turn. If the tool is unavailable or fails, say so plainly ("I don't have the calendar tool wired up here, you'd need to do this manually"). Never claim a side effect you didn't actually perform — the user sees a strip of every tool call you make under your reply, so unbacked claims will be obvious.
 - ALWAYS FINALIZE WITH TEXT: Your last action of the turn must be a plain-text reply, not another tool call. Even if the work isn't fully done, end with one short paragraph saying what landed, what didn't, and what's still needed. Empty bubbles with only a tool strip are a failure case — the user can see the tools but doesn't know if you finished. Budget your tool calls so you have room to summarize before the turn closes.`;
-  const hintToUse = agentId === 'main' ? mainHint : specialistHint;
+  const hintToUse = agentId === MAIN_AGENT_ID ? mainHint : specialistHint;
 
   const transcriptBlock = buildMeetingContextBlock(meetingId, agentId);
 
@@ -1503,7 +1503,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
     type: 'status_update',
     turnId,
     phase: 'streaming',
-    label: `${agentId === 'main' ? 'Main' : agentId} is typing…`,
+    label: `${agentId === MAIN_AGENT_ID ? 'Ezra' : agentId} is typing…`,
     agentId,
   });
 
@@ -1590,7 +1590,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
         // skill flow can complete without being cliff-edged. Cost is
         // bounded by the per-agent budget timer (45-75s) so a runaway
         // tool loop still gets killed at the wall-clock layer.
-        maxTurns: agentId === 'main' ? 10 : 8,
+        maxTurns: agentId === MAIN_AGENT_ID ? 10 : 8,
         env: sdkEnvStripped(),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
         includePartialMessages: true,
@@ -1663,7 +1663,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
               channel.emit({
                 type: 'system_note',
                 turnId,
-                text: `${agentId === 'main' ? 'Main' : agentId} hit the per-turn tool budget (${TOOL_BUDGET_PER_TURN} calls). Asking them to wrap up.`,
+                text: `${agentId === MAIN_AGENT_ID ? 'Ezra' : agentId} hit the per-turn tool budget (${TOOL_BUDGET_PER_TURN} calls). Asking them to wrap up.`,
                 tone: 'warn',
                 dismissable: true,
               });
@@ -1830,7 +1830,7 @@ async function runAgentTurn(args: RunAgentTurnArgs): Promise<string> {
       reason: timedOut ? 'agent timed out' : (incomplete ? 'cancelled before content' : 'no content'),
     });
     if (role === 'primary') {
-      const agentLabel = agentId === 'main' ? 'Main' : agentId;
+      const agentLabel = agentId === MAIN_AGENT_ID ? 'Ezra' : agentId;
       // Build a richer fallback when we know the agent ran out of headroom
       // mid-tool-loop. Empty text + tool calls + max_turns stop reason =
       // "did real work, ran out of room before finalizing." Surface what

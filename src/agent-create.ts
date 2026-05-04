@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { execSync, spawn } from 'child_process';
 import yaml from 'js-yaml';
 
-import { CLAUDECLAW_CONFIG, PROJECT_ROOT, STORE_DIR } from './config.js';
+import { CLAUDECLAW_CONFIG, MAIN_AGENT_ID, PROJECT_ROOT, STORE_DIR } from './config.js';
 import { listAgentIds, loadAgentConfig, resolveAgentDir, refreshWarRoomRoster } from './agent-config.js';
 import { refreshAgentRegistry } from './orchestrator.js';
 import { atomicEnvWrite } from './env-write.js';
@@ -146,7 +146,7 @@ export function validateAgentId(id: string): { ok: boolean; error?: string } {
       error: 'Agent ID must be lowercase, start with a letter, and contain only a-z, 0-9, hyphens, or underscores (max 30 chars)',
     };
   }
-  if (id === 'main') return { ok: false, error: '"main" is reserved for the primary bot' };
+  if (id === MAIN_AGENT_ID) return { ok: false, error: `"${MAIN_AGENT_ID}" is reserved for the primary bot` };
   if (id.startsWith('_')) return { ok: false, error: 'Agent IDs starting with _ are reserved for templates' };
 
   // Check for collisions

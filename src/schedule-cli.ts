@@ -14,6 +14,7 @@
 
 import { randomBytes } from 'crypto';
 
+import { MAIN_AGENT_ID } from './config.js';
 import {
   initDatabase,
   createScheduledTask,
@@ -29,8 +30,8 @@ initDatabase();
 // Parse --agent flag from anywhere in argv, fall back to CLAUDECLAW_AGENT_ID env var
 const agentFlagIdx = process.argv.indexOf('--agent');
 const cliAgentId = agentFlagIdx !== -1
-  ? process.argv[agentFlagIdx + 1] ?? 'main'
-  : process.env.CLAUDECLAW_AGENT_ID ?? 'main';
+  ? process.argv[agentFlagIdx + 1] ?? MAIN_AGENT_ID
+  : process.env.CLAUDECLAW_AGENT_ID ?? MAIN_AGENT_ID;
 // Remove --agent and its value from rest args (only filter when flag is present)
 const cleanedArgv = agentFlagIdx !== -1
   ? process.argv.filter((_, i) => i !== agentFlagIdx && i !== agentFlagIdx + 1)
@@ -77,7 +78,7 @@ switch (command) {
   }
 
   case 'list': {
-    const tasks = getAllScheduledTasks(cliAgentId === 'main' ? undefined : cliAgentId);
+    const tasks = getAllScheduledTasks(cliAgentId === MAIN_AGENT_ID ? undefined : cliAgentId);
     if (tasks.length === 0) {
       console.log('No scheduled tasks.');
       break;

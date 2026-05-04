@@ -13,9 +13,9 @@ import bolt from '@slack/bolt';
 import { logger } from './logger.js';
 import { runAgentWithRetry } from './agent.js';
 import { getSession, setSession } from './db.js';
-import { SLACK_BOT_TOKEN, SLACK_APP_TOKEN } from './config.js';
+import { MAIN_AGENT_ID, SLACK_BOT_TOKEN, SLACK_APP_TOKEN } from './config.js';
 
-const AGENT_ID = 'main';
+const AGENT_ID: string = MAIN_AGENT_ID;
 
 export async function startSlackBot(): Promise<void> {
   if (!SLACK_BOT_TOKEN || !SLACK_APP_TOKEN) {

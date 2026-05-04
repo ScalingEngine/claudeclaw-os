@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PROJECT_ROOT, STORE_DIR } from './config.js';
+import { MAIN_AGENT_ID, PROJECT_ROOT, STORE_DIR } from './config.js';
 import { resolveAgentDir, loadAgentConfig } from './agent-config.js';
 import { logger } from './logger.js';
 
@@ -46,14 +46,14 @@ function bundledPath(agentId: string, variant: 'default' | 'meet'): string {
  *  art tracked in git. */
 export function getMutableAvatarPath(agentId: string): string {
   if (!ID_RE.test(agentId)) throw new Error(`invalid agent id: ${agentId}`);
-  if (agentId === 'main') {
+  if (agentId === MAIN_AGENT_ID) {
     return path.join(STORE_DIR, 'avatars', 'main.png');
   }
   return path.join(resolveAgentDir(agentId), 'avatar.png');
 }
 
 function noAvatarFlagPath(agentId: string): string {
-  if (agentId === 'main') {
+  if (agentId === MAIN_AGENT_ID) {
     return path.join(STORE_DIR, 'avatars', '.main.no-avatar');
   }
   return path.join(resolveAgentDir(agentId), '.no-avatar');
@@ -140,7 +140,7 @@ function withAgentLock<T>(agentId: string, fn: () => Promise<T>): Promise<T> {
 // verbatim so HTTP and CLI paths share it. Writes only to the mutable
 // path; never touches warroom/avatars/.
 export async function tryFetchTelegramAvatar(agentId: string): Promise<boolean> {
-  if (!ID_RE.test(agentId) || agentId === 'main') return false;
+  if (!ID_RE.test(agentId) || agentId === MAIN_AGENT_ID) return false;
   let botToken: string;
   try {
     botToken = loadAgentConfig(agentId).botToken;

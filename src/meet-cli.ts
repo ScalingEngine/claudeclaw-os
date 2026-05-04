@@ -8,13 +8,13 @@
  * and their voice_id / bot name from agent.yaml.
  *
  * Usage:
- *   node dist/meet-cli.js join --agent main --meet-url <url> [--brief <file>] [--bot-name <name>]
+ *   node dist/meet-cli.js join --agent ezra --meet-url <url> [--brief <file>] [--bot-name <name>]
  *   node dist/meet-cli.js leave --session-id <id>
  *   node dist/meet-cli.js list [--active]
  *   node dist/meet-cli.js show --session-id <id>
  *
  * On join success, the CLI prints JSON:
- *   {"ok": true, "session_id": "...", "agent": "main", "meet_url": "...", "status": "live"}
+ *   {"ok": true, "session_id": "...", "agent": "ezra", "meet_url": "...", "status": "live"}
  *
  * On join failure:
  *   {"ok": false, "error": "..."}
@@ -31,6 +31,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
+import { MAIN_AGENT_ID } from './config.js';
 import { getVenvPython, killProcess } from './platform.js';
 
 import {
@@ -142,12 +143,13 @@ interface AgentResolved {
 }
 
 function resolveAgent(agentId: string): AgentResolved {
-  // "main" is a pseudo-agent that uses the project root, not an
-  // agents/ dir. It has no agent.yaml but the other defaults still apply.
+  // The orchestrator (MAIN_AGENT_ID) is a pseudo-agent that uses the
+  // project root, not an agents/ dir. It has no agent.yaml but the other
+  // defaults still apply.
   let botName = agentId.charAt(0).toUpperCase() + agentId.slice(1);
   let voiceId = DEFAULT_VOICE_ID;
 
-  if (agentId !== 'main') {
+  if (agentId !== MAIN_AGENT_ID) {
     try {
       const cfg = loadAgentConfig(agentId);
       if (cfg.meetBotName) botName = cfg.meetBotName;
@@ -368,12 +370,12 @@ function buildMinimalBrief(params: { agentId: string; meetUrl: string; contextHi
 // ── Subcommands ──────────────────────────────────────────────────────
 
 async function cmdBrief(): Promise<void> {
-  const agentId = flag('--agent') ?? 'main';
+  const agentId = flag('--agent') ?? MAIN_AGENT_ID;
   const meetUrl = flag('--meet-url');
   const contextHint = flag('--context');
   if (!meetUrl) die('--meet-url required');
 
-  const knownAgents = new Set(['main', ...listAgentIds()]);
+  const knownAgents = new Set([MAIN_AGENT_ID, ...listAgentIds()]);
   if (!knownAgents.has(agentId)) {
     die(`unknown agent: ${agentId}. Known: ${[...knownAgents].join(', ')}`);
   }
@@ -391,7 +393,7 @@ async function cmdBrief(): Promise<void> {
 }
 
 async function cmdJoin(): Promise<void> {
-  const agentId = flag('--agent') ?? 'main';
+  const agentId = flag('--agent') ?? MAIN_AGENT_ID;
   const meetUrl = flag('--meet-url');
   let briefPath = flag('--brief');
   const overrideBotName = flag('--bot-name');
@@ -402,7 +404,7 @@ async function cmdJoin(): Promise<void> {
 
   if (!meetUrl) die('--meet-url required');
 
-  const knownAgents = new Set(['main', ...listAgentIds()]);
+  const knownAgents = new Set([MAIN_AGENT_ID, ...listAgentIds()]);
   if (!knownAgents.has(agentId)) {
     die(`unknown agent: ${agentId}. Known: ${[...knownAgents].join(', ')}`);
   }
@@ -503,7 +505,7 @@ async function cmdJoinDaily(): Promise<void> {
   // URL so the caller can share it with whoever they want to meet. The
   // bot runs its own process per meeting and self-terminates when the
   // room empties or expires.
-  const agentId = flag('--agent') ?? 'main';
+  const agentId = flag('--agent') ?? MAIN_AGENT_ID;
   let briefPath = flag('--brief');
   const overrideBotName = flag('--bot-name');
   const mode = flag('--mode') ?? 'direct';
@@ -512,7 +514,7 @@ async function cmdJoinDaily(): Promise<void> {
   const roomName = flag('--room-name'); // optional custom name, otherwise Daily auto-generates
   const ttlSec = flag('--ttl-sec') ? parseInt(flag('--ttl-sec')!, 10) : undefined;
 
-  const knownAgents = new Set(['main', ...listAgentIds()]);
+  const knownAgents = new Set([MAIN_AGENT_ID, ...listAgentIds()]);
   if (!knownAgents.has(agentId)) {
     die(`unknown agent: ${agentId}. Known: ${[...knownAgents].join(', ')}`);
   }

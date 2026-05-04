@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import { DB_ENCRYPTION_KEY, STORE_DIR } from './config.js';
+import { DB_ENCRYPTION_KEY, MAIN_AGENT_ID, STORE_DIR } from './config.js';
 import { cosineSimilarity } from './embeddings.js';
 import { logger } from './logger.js';
 
@@ -84,7 +84,7 @@ function createSchema(database: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS sessions (
       chat_id    TEXT NOT NULL,
-      agent_id   TEXT NOT NULL DEFAULT 'main',
+      agent_id   TEXT NOT NULL DEFAULT 'ezra',
       session_id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (chat_id, agent_id)
@@ -260,7 +260,7 @@ function createSchema(database: Database.Database): void {
       ended_at    INTEGER,
       duration_s  INTEGER,
       mode        TEXT NOT NULL DEFAULT 'direct',  -- direct | auto
-      pinned_agent TEXT DEFAULT 'main',
+      pinned_agent TEXT DEFAULT 'ezra',
       entry_count INTEGER DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_warroom_meetings_time ON warroom_meetings(started_at DESC);
@@ -277,7 +277,7 @@ function createSchema(database: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS audit_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      agent_id    TEXT NOT NULL DEFAULT 'main',
+      agent_id    TEXT NOT NULL DEFAULT 'ezra',
       chat_id     TEXT NOT NULL DEFAULT '',
       action      TEXT NOT NULL,
       detail      TEXT NOT NULL DEFAULT '',
@@ -390,7 +390,7 @@ function createSchema(database: Database.Database): void {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       skill_id    TEXT NOT NULL,
       chat_id     TEXT NOT NULL DEFAULT '',
-      agent_id    TEXT NOT NULL DEFAULT 'main',
+      agent_id    TEXT NOT NULL DEFAULT 'ezra',
       triggered_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       tokens_used INTEGER NOT NULL DEFAULT 0,
       succeeded   INTEGER NOT NULL DEFAULT 1
@@ -476,13 +476,13 @@ function runMigrations(database: Database.Database): void {
     database.exec(`
       CREATE TABLE sessions_new (
         chat_id    TEXT NOT NULL,
-        agent_id   TEXT NOT NULL DEFAULT 'main',
+        agent_id   TEXT NOT NULL DEFAULT 'ezra',
         session_id TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (chat_id, agent_id)
       );
       INSERT OR IGNORE INTO sessions_new (chat_id, agent_id, session_id, updated_at)
-        SELECT chat_id, COALESCE(agent_id, 'main'), session_id, updated_at FROM sessions;
+        SELECT chat_id, COALESCE(agent_id, 'ezra'), session_id, updated_at FROM sessions;
       DROP TABLE sessions;
       ALTER TABLE sessions_new RENAME TO sessions;
     `);
@@ -490,17 +490,17 @@ function runMigrations(database: Database.Database): void {
 
   const taskCols = database.prepare(`PRAGMA table_info(scheduled_tasks)`).all() as Array<{ name: string }>;
   if (!taskCols.some((c) => c.name === 'agent_id')) {
-    database.exec(`ALTER TABLE scheduled_tasks ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'main'`);
+    database.exec(`ALTER TABLE scheduled_tasks ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'ezra'`);
   }
 
   const usageCols = database.prepare(`PRAGMA table_info(token_usage)`).all() as Array<{ name: string }>;
   if (!usageCols.some((c) => c.name === 'agent_id')) {
-    database.exec(`ALTER TABLE token_usage ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'main'`);
+    database.exec(`ALTER TABLE token_usage ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'ezra'`);
   }
 
   const convoCols = database.prepare(`PRAGMA table_info(conversation_log)`).all() as Array<{ name: string }>;
   if (!convoCols.some((c) => c.name === 'agent_id')) {
-    database.exec(`ALTER TABLE conversation_log ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'main'`);
+    database.exec(`ALTER TABLE conversation_log ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'ezra'`);
   }
 
   // Task state machine: add started_at and last_status columns
@@ -617,7 +617,7 @@ function runMigrations(database: Database.Database): void {
 
   // Hive Mind V2: Add agent_id to memories for attribution
   if (!memColsPost.some((c: { name: string }) => c.name === 'agent_id')) {
-    database.exec(`ALTER TABLE memories ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'main'`);
+    database.exec(`ALTER TABLE memories ADD COLUMN agent_id TEXT NOT NULL DEFAULT 'ezra'`);
     logger.info('Migration: added agent_id column to memories table');
   }
 
@@ -755,20 +755,20 @@ export function _testBackdateMeetingEnd(meetingId: string, endedAtSec: number): 
     .run(endedAtSec, meetingId);
 }
 
-export function getSession(chatId: string, agentId = 'main'): string | undefined {
+export function getSession(chatId: string, agentId: string = MAIN_AGENT_ID): string | undefined {
   const row = db
     .prepare('SELECT session_id FROM sessions WHERE chat_id = ? AND agent_id = ?')
     .get(chatId, agentId) as { session_id: string } | undefined;
   return row?.session_id;
 }
 
-export function setSession(chatId: string, sessionId: string, agentId = 'main'): void {
+export function setSession(chatId: string, sessionId: string, agentId: string = MAIN_AGENT_ID): void {
   db.prepare(
     'INSERT OR REPLACE INTO sessions (chat_id, agent_id, session_id, updated_at) VALUES (?, ?, ?, ?)',
   ).run(chatId, agentId, sessionId, new Date().toISOString());
 }
 
-export function clearSession(chatId: string, agentId = 'main'): void {
+export function clearSession(chatId: string, agentId: string = MAIN_AGENT_ID): void {
   db.prepare('DELETE FROM sessions WHERE chat_id = ? AND agent_id = ?').run(chatId, agentId);
 }
 
@@ -812,7 +812,7 @@ export function saveStructuredMemory(
   topics: string[],
   importance: number,
   source = 'conversation',
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): number {
   const now = Math.floor(Date.now() / 1000);
   const result = db.prepare(
@@ -972,7 +972,7 @@ export function saveStructuredMemoryAtomic(
   importance: number,
   embedding: number[],
   source = 'conversation',
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): number {
   const txn = db.transaction(() => {
     const memoryId = saveStructuredMemory(chatId, rawText, summary, entities, topics, importance, source, agentId);
@@ -1240,7 +1240,7 @@ export function createScheduledTask(
   prompt: string,
   schedule: string,
   nextRun: number,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
@@ -1249,7 +1249,7 @@ export function createScheduledTask(
   ).run(id, prompt, schedule, nextRun, now, agentId);
 }
 
-export function getDueTasks(agentId = 'main'): ScheduledTask[] {
+export function getDueTasks(agentId: string = MAIN_AGENT_ID): ScheduledTask[] {
   const now = Math.floor(Date.now() / 1000);
   return db
     .prepare(
@@ -1473,7 +1473,7 @@ export function logConversationTurn(
   role: 'user' | 'assistant',
   content: string,
   sessionId?: string,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
@@ -1729,7 +1729,7 @@ export function saveTokenUsage(
   contextTokens: number,
   costUsd: number,
   didCompact: boolean,
-  agentId = 'main',
+  agentId: string = MAIN_AGENT_ID,
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
@@ -2492,14 +2492,14 @@ export function getSessionStats(sessionId: string): {
 
 // ── Phase 2: Memory nudge support ──────────────────────────────────────
 
-export function getLastMemorySaveTime(chatId: string, agentId = 'main'): number | null {
+export function getLastMemorySaveTime(chatId: string, agentId: string = MAIN_AGENT_ID): number | null {
   const row = db.prepare(
     'SELECT created_at FROM memories WHERE chat_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT 1',
   ).get(chatId, agentId) as { created_at: number } | undefined;
   return row?.created_at ?? null;
 }
 
-export function getTurnCountSinceTimestamp(chatId: string, sinceTimestamp: number, agentId = 'main'): number {
+export function getTurnCountSinceTimestamp(chatId: string, sinceTimestamp: number, agentId: string = MAIN_AGENT_ID): number {
   const row = db.prepare(
     'SELECT COUNT(*) as c FROM conversation_log WHERE chat_id = ? AND agent_id = ? AND role = ? AND created_at > ?',
   ).get(chatId, agentId, 'user', sinceTimestamp) as { c: number };
@@ -2757,7 +2757,7 @@ export function getRecentWarRoomTranscriptForChat(
 
 // ── Text War Room helpers ────────────────────────────────────────────
 // Kept separate from createWarRoomMeeting so the text path can't accidentally
-// inherit the voice default of pinned_agent='main'. A text meeting starts
+// inherit the voice default of pinned_agent='ezra'. A text meeting starts
 // with NO pinned agent so the router is allowed to pick primary.
 
 export function createTextMeeting(id: string, chatId = ''): void {

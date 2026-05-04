@@ -4,7 +4,7 @@ import path from 'path';
 import { loadAgentConfig, listAgentIds, resolveAgentDir, resolveAgentClaudeMd, refreshWarRoomRoster } from './agent-config.js';
 import { createBot } from './bot.js';
 import { checkPendingMigrations } from './migrations.js';
-import { ALLOWED_CHAT_ID, activeBotToken, STORE_DIR, PROJECT_ROOT, CLAUDECLAW_CONFIG, GOOGLE_API_KEY, setAgentOverrides, SECURITY_PIN_HASH, IDLE_LOCK_MINUTES, EMERGENCY_KILL_PHRASE, WARROOM_ENABLED, WARROOM_PORT } from './config.js';
+import { ALLOWED_CHAT_ID, activeBotToken, MAIN_AGENT_ID, STORE_DIR, PROJECT_ROOT, CLAUDECLAW_CONFIG, GOOGLE_API_KEY, setAgentOverrides, SECURITY_PIN_HASH, IDLE_LOCK_MINUTES, EMERGENCY_KILL_PHRASE, WARROOM_ENABLED, WARROOM_PORT } from './config.js';
 import { startDashboard } from './dashboard.js';
 import { initDatabase, cleanupOldMissionTasks, insertAuditLog } from './db.js';
 import { initSecurity, setAuditCallback } from './security.js';
@@ -22,12 +22,12 @@ import { getVenvPython, killProcess } from './platform.js';
 
 // Parse --agent flag
 const agentFlagIndex = process.argv.indexOf('--agent');
-const AGENT_ID = agentFlagIndex !== -1 ? process.argv[agentFlagIndex + 1] : 'main';
+const AGENT_ID = agentFlagIndex !== -1 ? process.argv[agentFlagIndex + 1] : MAIN_AGENT_ID;
 
 // Export AGENT_ID to env so child processes (schedule-cli, etc.) inherit it
 process.env.CLAUDECLAW_AGENT_ID = AGENT_ID;
 
-if (AGENT_ID !== 'main') {
+if (AGENT_ID !== MAIN_AGENT_ID) {
   const agentConfig = loadAgentConfig(AGENT_ID);
   const agentDir = resolveAgentDir(AGENT_ID);
   const claudeMdPath = resolveAgentClaudeMd(AGENT_ID);
@@ -60,7 +60,7 @@ if (AGENT_ID !== 'main') {
     } catch { /* unreadable */ }
     if (systemPrompt) {
       setAgentOverrides({
-        agentId: 'main',
+        agentId: MAIN_AGENT_ID,
         botToken: activeBotToken,
         cwd: PROJECT_ROOT,
         systemPrompt,
@@ -75,7 +75,7 @@ if (AGENT_ID !== 'main') {
   }
 }
 
-const PID_FILE = path.join(STORE_DIR, `${AGENT_ID === 'main' ? 'claudeclaw' : `agent-${AGENT_ID}`}.pid`);
+const PID_FILE = path.join(STORE_DIR, `${AGENT_ID === MAIN_AGENT_ID ? 'claudeclaw' : `agent-${AGENT_ID}`}.pid`);
 
 function showBanner(): void {
   const bannerPath = path.join(PROJECT_ROOT, 'banner.txt');
@@ -109,12 +109,12 @@ async function main(): Promise<void> {
   
   checkPendingMigrations(PROJECT_ROOT);
 
-  if (AGENT_ID === 'main') {
+  if (AGENT_ID === MAIN_AGENT_ID) {
     showBanner();
   }
 
   if (!activeBotToken) {
-    if (AGENT_ID === 'main') {
+    if (AGENT_ID === MAIN_AGENT_ID) {
       logger.error('Bot token is not set. Run npm run setup to configure it.');
     } else {
       logger.error({ agentId: AGENT_ID }, `Configuration for agent "${AGENT_ID}" is broken: bot token not set. Check .env or re-run npm run agent:create.`);
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
   // Decay and consolidation run ONLY in the main process to prevent
   // multi-process over-decay (5x decay on simultaneous restart) and
   // duplicate consolidation records from overlapping memory batches.
-  if (AGENT_ID === 'main') {
+  if (AGENT_ID === MAIN_AGENT_ID) {
     runDecaySweep();
     cleanupOldMissionTasks(7);
     setInterval(() => { runDecaySweep(); cleanupOldMissionTasks(7); }, 24 * 60 * 60 * 1000);
@@ -185,7 +185,7 @@ async function main(): Promise<void> {
   const bot = createBot();
 
   // Dashboard only runs in the main bot process
-  if (AGENT_ID === 'main') {
+  if (AGENT_ID === MAIN_AGENT_ID) {
     startDashboard(bot.api);
 
     // War Room voice server (auto-start if enabled, with auto-respawn)
@@ -375,7 +375,7 @@ async function main(): Promise<void> {
   }
 
   // Slack listener (Socket Mode). Non-fatal: missing tokens or Bolt errors do not block Telegram.
-  if (AGENT_ID === "main") {
+  if (AGENT_ID === MAIN_AGENT_ID) {
     startSlackBot().catch((err) => logger.warn({ err }, "startSlackBot threw (non-fatal)"));
   }
 
@@ -384,7 +384,7 @@ async function main(): Promise<void> {
       setTelegramConnected(true);
       setBotInfo(botInfo.username ?? '', botInfo.first_name ?? 'ClaudeClaw');
       logger.info({ username: botInfo.username }, 'ClaudeClaw is running');
-      if (AGENT_ID === 'main') {
+      if (AGENT_ID === MAIN_AGENT_ID) {
         console.log(`\n  ClaudeClaw online: @${botInfo.username}`);
         if (!ALLOWED_CHAT_ID) {
           console.log(`  Send /chatid to get your chat ID for ALLOWED_CHAT_ID`);

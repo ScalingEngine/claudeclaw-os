@@ -1,6 +1,6 @@
 import { CronExpressionParser } from 'cron-parser';
 
-import { AGENT_ID, ALLOWED_CHAT_ID, agentMcpAllowlist } from './config.js';
+import { AGENT_ID, ALLOWED_CHAT_ID, MAIN_AGENT_ID, agentMcpAllowlist } from './config.js';
 import {
   getDueTasks,
   getSession,
@@ -35,9 +35,9 @@ const runningTaskIds = new Set<string>();
  * Initialise the scheduler. Call once after the Telegram bot is ready.
  * @param send  Function that sends a message to the user's Telegram chat.
  */
-let schedulerAgentId = 'main';
+let schedulerAgentId: string = MAIN_AGENT_ID;
 
-export function initScheduler(send: Sender, agentId = 'main'): void {
+export function initScheduler(send: Sender, agentId: string = MAIN_AGENT_ID): void {
   if (!ALLOWED_CHAT_ID) {
     logger.warn('ALLOWED_CHAT_ID not set — scheduler will not send results');
   }

@@ -129,7 +129,7 @@ export function parseDelegation(
  * @param agentId    Target agent identifier (must exist in agents/)
  * @param prompt     The task to delegate
  * @param chatId     Telegram chat ID (for DB tracking)
- * @param fromAgent  The requesting agent's ID (usually 'main')
+ * @param fromAgent  The requesting agent's ID (usually MAIN_AGENT_ID, e.g. 'ezra')
  * @param onProgress Optional callback for status updates
  * @param timeoutMs  Maximum execution time (default 5 min)
  */
