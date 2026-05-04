@@ -17,7 +17,8 @@ import { initOAuthHealthCheck } from './oauth-health.js';
 import { initOrchestrator } from './orchestrator.js';
 import { initScheduler } from './scheduler.js';
 import { startSlackBot } from './slack-bot.js';
-import { setTelegramConnected, setBotInfo } from './state.js';
+import { setTelegramConnected, setBotInfo, setDefaultAgentId } from './state.js';
+import { startConversationLogTailer } from './conversation-log-tailer.js';
 import { getVenvPython, killProcess } from './platform.js';
 
 // Parse --agent flag
@@ -26,6 +27,10 @@ const AGENT_ID = agentFlagIndex !== -1 ? process.argv[agentFlagIndex + 1] : MAIN
 
 // Export AGENT_ID to env so child processes (schedule-cli, etc.) inherit it
 process.env.CLAUDECLAW_AGENT_ID = AGENT_ID;
+
+// Tag every chat event from this process with our AGENT_ID so the
+// dashboard can label specialist messages in the unified "All" view.
+setDefaultAgentId(AGENT_ID);
 
 if (AGENT_ID !== MAIN_AGENT_ID) {
   let agentConfig;
@@ -174,6 +179,10 @@ async function main(): Promise<void> {
     // bundled namespace gets copied into STORE_DIR/avatars/main.png so
     // the new resolver serves it as the mutable source-of-truth.
     runWarroomAvatarMigration();
+
+    // Stream specialist Telegram traffic (different processes) into the
+    // dashboard SSE bus by tailing conversation_log for non-main rows.
+    startConversationLogTailer();
 
     // Memory consolidation: find patterns across recent memories every 30 minutes
     if (ALLOWED_CHAT_ID && GOOGLE_API_KEY) {

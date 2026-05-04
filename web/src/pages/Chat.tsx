@@ -10,7 +10,7 @@ import { formatCost, formatNumber } from '@/lib/format';
 import { showCosts } from '@/lib/theme';
 import { subscribeChatStream, chatStreamConnected, resetUnread } from '@/lib/chat-stream';
 
-interface Turn { role: 'user' | 'assistant'; content: string; source?: string; created_at?: number; photoUrl?: string; photoCaption?: string; }
+interface Turn { role: 'user' | 'assistant'; content: string; source?: string; created_at?: number; photoUrl?: string; photoCaption?: string; agent_id?: string; }
 interface Agent { id: string; name: string; running: boolean; }
 
 interface AgentTokens { todayCost: number; todayTurns: number; allTimeCost: number; }
@@ -96,10 +96,15 @@ export function Chat() {
   useEffect(() => {
     resetUnread();
     const unsub = subscribeChatStream((eventName, data) => {
+      // Drop events from other agents when a specific tab is active.
+      // The "all" tab keeps everything.
+      const evtAgent: string | undefined = data.agentId;
+      if (activeAgent !== 'all' && evtAgent && evtAgent !== activeAgent) return;
+
       if (eventName === 'user_message') {
-        setTurns((prev) => [...prev, { role: 'user', content: data.content, source: data.source }]);
+        setTurns((prev) => [...prev, { role: 'user', content: data.content, source: data.source, agent_id: evtAgent }]);
       } else if (eventName === 'assistant_message') {
-        setTurns((prev) => [...prev, { role: 'assistant', content: data.content, source: data.source }]);
+        setTurns((prev) => [...prev, { role: 'assistant', content: data.content, source: data.source, agent_id: evtAgent }]);
         setProcessing(false); setProgressLabel(null);
         health.refresh();
         if (activeAgent !== 'all') agentTokens.refresh();
@@ -112,6 +117,7 @@ export function Chat() {
           source: data.source,
           photoUrl: data.url,
           photoCaption: data.caption,
+          agent_id: evtAgent,
         }]);
       } else if (eventName === 'processing') {
         if (data.processing !== undefined) setProcessing(!!data.processing);
@@ -119,7 +125,7 @@ export function Chat() {
       } else if (eventName === 'progress') {
         if (data.description) setProgressLabel(data.description);
       } else if (eventName === 'error') {
-        setTurns((prev) => [...prev, { role: 'assistant', content: data.content || 'Error' }]);
+        setTurns((prev) => [...prev, { role: 'assistant', content: data.content || 'Error', agent_id: evtAgent }]);
         setProcessing(false); setProgressLabel(null);
       }
     });
@@ -195,7 +201,15 @@ export function Chat() {
           {!loading && turns.length === 0 && (
             <PageState empty emptyTitle="No messages yet" emptyDescription="Type below to talk to your agent. Replies stream in via SSE." />
           )}
-          {turns.map((t, i) => <Bubble key={i} turn={t} />)}
+          {turns.map((t, i) => {
+            // Show the agent label only in "all" view, where messages come
+            // from multiple agents. In a per-agent tab, the tab itself is
+            // the label.
+            const tag = activeAgent === 'all' && t.agent_id
+              ? (agentList.find((a) => a.id === t.agent_id)?.name || t.agent_id)
+              : undefined;
+            return <Bubble key={i} turn={t} agentLabel={tag} />;
+          })}
           {processing && <ProcessingBubble label={progressLabel} />}
         </div>
         {!atBottom && (
@@ -308,12 +322,15 @@ function TabBtn({ label, active, onClick, live }: { label: string; active: boole
   );
 }
 
-function Bubble({ turn }: { turn: Turn }) {
+function Bubble({ turn, agentLabel }: { turn: Turn; agentLabel?: string }) {
   const isUser = turn.role === 'user';
   const isPhoto = !!turn.photoUrl;
   const html = (isUser || isPhoto) ? null : renderMarkdown(turn.content);
   return (
-    <div class={'flex ' + (isUser ? 'justify-end' : 'justify-start')}>
+    <div class={'flex flex-col ' + (isUser ? 'items-end' : 'items-start')}>
+      {agentLabel && (
+        <div class="text-[9.5px] opacity-70 mb-0.5 px-1 uppercase tracking-wider text-[var(--color-text-muted)]">{agentLabel}</div>
+      )}
       <div
         class={[
           'max-w-[75%] rounded-lg text-[12.5px] leading-relaxed overflow-hidden',

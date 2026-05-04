@@ -47,8 +47,18 @@ export interface ChatEvent {
 export const chatEvents = new EventEmitter();
 chatEvents.setMaxListeners(20);
 
+let _defaultAgentId: string | undefined;
+
+export function setDefaultAgentId(id: string): void {
+  _defaultAgentId = id;
+}
+
 export function emitChatEvent(event: Omit<ChatEvent, 'timestamp'>): void {
-  const full: ChatEvent = { ...event, timestamp: Date.now() };
+  const full: ChatEvent = {
+    ...event,
+    agentId: event.agentId ?? _defaultAgentId,
+    timestamp: Date.now(),
+  };
   chatEvents.emit('chat', full);
 }
 

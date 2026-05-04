@@ -1466,6 +1466,7 @@ export interface ConversationTurn {
   role: string;
   content: string;
   created_at: number;
+  agent_id?: string;
 }
 
 export function logConversationTurn(
@@ -1572,6 +1573,31 @@ export function getConversationPage(
        ORDER BY id DESC LIMIT ?`,
     )
     .all(chatId, limit) as ConversationTurn[];
+}
+
+/** Latest conversation_log id, for tailers seeding a since-cursor at boot. */
+export function getMaxConversationLogId(): number {
+  const row = db
+    .prepare('SELECT COALESCE(MAX(id), 0) AS max_id FROM conversation_log')
+    .get() as { max_id: number };
+  return row.max_id ?? 0;
+}
+
+/** Returns conversation_log rows with id > sinceId, excluding rows from
+ *  excludeAgentId. Ordered ASC for in-order replay. */
+export function getConversationTurnsSince(
+  sinceId: number,
+  excludeAgentId: string,
+  limit = 50,
+): ConversationTurn[] {
+  return db
+    .prepare(
+      `SELECT id, chat_id, session_id, role, content, created_at, agent_id
+         FROM conversation_log
+        WHERE id > ? AND agent_id != ?
+        ORDER BY id ASC LIMIT ?`,
+    )
+    .all(sinceId, excludeAgentId, limit) as ConversationTurn[];
 }
 
 /**
