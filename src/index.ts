@@ -16,6 +16,7 @@ import { runWarroomAvatarMigration } from './avatars.js';
 import { initOAuthHealthCheck } from './oauth-health.js';
 import { initOrchestrator } from './orchestrator.js';
 import { initScheduler } from './scheduler.js';
+import { startSlackBot } from './slack-bot.js';
 import { setTelegramConnected, setBotInfo } from './state.js';
 import { getVenvPython, killProcess } from './platform.js';
 
@@ -372,6 +373,9 @@ async function main(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, 'Could not clear webhook (non-fatal)');
   }
+
+  // Slack listener (Socket Mode). Non-fatal: missing tokens or Bolt errors do not block Telegram.
+  startSlackBot().catch((err) => logger.warn({ err }, "startSlackBot threw (non-fatal)"));
 
   await bot.start({
     onStart: (botInfo) => {
