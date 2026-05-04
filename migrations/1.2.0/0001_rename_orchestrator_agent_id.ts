@@ -29,6 +29,7 @@
  */
 
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -70,7 +71,7 @@ const FROM_TO_TABLES: Array<{ table: string; cols: string[] }> = [
 ];
 
 export async function run(): Promise<void> {
-  if (!require('fs').existsSync(DB_PATH)) {
+  if (!fs.existsSync(DB_PATH)) {
     console.log(`No DB at ${DB_PATH} — fresh install, nothing to migrate.`);
     return;
   }
