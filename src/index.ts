@@ -375,7 +375,9 @@ async function main(): Promise<void> {
   }
 
   // Slack listener (Socket Mode). Non-fatal: missing tokens or Bolt errors do not block Telegram.
-  startSlackBot().catch((err) => logger.warn({ err }, "startSlackBot threw (non-fatal)"));
+  if (AGENT_ID === "main") {
+    startSlackBot().catch((err) => logger.warn({ err }, "startSlackBot threw (non-fatal)"));
+  }
 
   await bot.start({
     onStart: (botInfo) => {
