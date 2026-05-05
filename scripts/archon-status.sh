@@ -40,7 +40,7 @@ workflow_entry_count() {
     line ~ /^[$>]/ { next }
     line ~ /^available workflows:?$/ { next }
     line ~ /^workflows:?$/ { next }
-    line ~ /^[[:digit:]]+[[:space:]]+workflows?$/ { count++; next }
+    line ~ /^[[:digit:]]+[[:space:]]+workflows?$/ { next }
     line ~ /^[-*][[:space:]]*[[:alnum:]_.-]+/ { count++; next }
     line ~ /^[[:alnum:]_.-]+[[:space:]]+-[[:space:]]+/ { count++; next }
     line ~ /^[[:alnum:]_.-]+\.ya?ml([[:space:]]|$)/ { count++; next }
