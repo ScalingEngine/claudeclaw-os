@@ -46,6 +46,8 @@ VPS analysis from 2026-05-05:
 Phases:
 - [x] Phase 1: VPS Archon runtime surface — create a reliable Archon invocation path for systemd-run ClaudeClaw agents; verify `workflow list` against `/home/devuser/claudeclaw`; fix legacy global workflow path warning; document environment and credential loading. Completed 2026-05-05. Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04.
 - [ ] Phase 2: Safe workspace and deploy boundary — establish non-production Archon workspaces/worktrees for agent work; document forbidden production state; preserve commit-based deploy and rollback rules. Requirements: SAFE-01, SAFE-02, SAFE-03, SAFE-04.
+  - Wave 1: Plan 01 — safe Archon coding workspace boundary (`02-PLAN.md`).
+  - Cross-cutting constraints: refuse `/home/devuser/claudeclaw` as a coding workspace; forbid copied `.env`, SQLite databases, OAuth tokens, and live agent configs; preserve commit-based deploy and rollback commands.
 - [ ] Phase 3: Agent workflow routing policy — update Ezra, Vera, Poe, Cole, Hopper, and Archie personas with direct-answer vs skill/react-loop vs Archon-workflow guidance, including external-effect approval rules. Requirements: ROUT-01, ROUT-02, ROUT-03, ROUT-04, ROUT-05.
 - [ ] Phase 4: ClaudeClaw workflow pack — add and validate starter workflows for coding plan-to-PR, bugfix, strategy/business ingestion, ops triage, comms/content drafting, and workflow authoring. Requirements: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06.
 - [ ] Phase 5: Workflow observability and cleanup — surface workflow runs in agent responses or hive_mind-style activity, standardize failure reports, and give Archie/Hopper safe inspection and cleanup paths for active/stale runs. Requirements: OBS-01, OBS-02, OBS-03.
