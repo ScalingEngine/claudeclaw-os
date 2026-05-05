@@ -1,24 +1,37 @@
+---
+gsd_state_version: 1.0
+milestone: v1.1
+milestone_name: Archon Workflow Engine
+status: planning
+last_updated: "2026-05-05T19:12:56.173Z"
+last_activity: 2026-05-05
+progress:
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 0
+  percent: 0
+---
+
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (created 2026-05-04)
+See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Milestone 2 Phase 1 — Cross-Process Delegation Queue
+**Current focus:** Milestone 2 Phase 1 — VPS Archon Runtime Surface
 
 ## Current Position
 
-Phase: 1 of 5 in Milestone 2 (cross-process delegation queue)
+Phase: 1 of 5 in Milestone 2 (Archon Workflow Engine)
 Plan: Not started
-Status: Ready to `/gsd-plan-phase` against Milestone 2 Phase 1
-Last activity: 2026-05-04 — Milestone 1 (Fleet Foundation) complete; `.planning/` bootstrapped
-
-Progress: ░░░░░░░░░░ 0% (Milestone 2)
+Status: Ready to `/gsd-plan-phase 1` against Milestone 2 Phase 1
+Last activity: 2026-05-05 — Milestone v1.1 Archon Workflow Engine initialized
 
 ## Next Action
 
-When ready to start: `/gsd-plan-phase 1` to draft `PLAN.md` for the cross-process delegation queue against the Stage 2 spec at `Business/scaling-engine-ops/work-logs/2026/05/2026-05-04-claudeclaw-delegation-memory-prd.md` §"Stage 2 plan".
+When ready to start: `/gsd-plan-phase 1` to draft `PLAN.md` for the VPS Archon runtime surface. Phase 1 should make Archon callable from ClaudeClaw's non-interactive VPS agent environment, verify workflow discovery against `/home/devuser/claudeclaw`, fix the legacy `~/.archon/.archon/workflows` warning, and document credential/env loading.
 
 ## Recent Commits (since milestone bootstrap)
 
@@ -36,3 +49,5 @@ When ready to start: `/gsd-plan-phase 1` to draft `PLAN.md` for the cross-proces
 - **Memory accumulation rate** — first verified memory landed 2026-05-04 (importance 0.75, AI agent pricing). Watch memories table for one week before deciding on bidirectional sync.
 - **Persona over-execution** — Vera shipped `notify.sh` for a "confirm" prompt. Whether the other 4 specialists have the same bias is unmeasured.
 - **VPS-only deploy** — local Mac fleet config exists at `~/.claudeclaw/agents/` but isn't actively running. If we ever spin up a local mirror, the obsidian `vault:` paths point at the macOS vault; VPS yaml were patched on 2026-05-04 but local is untouched.
+- **Archon PATH gap** — `/home/devuser/remote-coding-agent` works via `bun run cli`, but `archon` is not on the non-interactive PATH. ClaudeClaw systemd agents need a reliable invocation surface before personas can depend on it.
+- **Archon legacy workflow path** — VPS has `~/.archon/.archon/workflows/se-strategy-ingest.yaml`; Archon warns that workflows should now live under `~/.archon/workflows/`.

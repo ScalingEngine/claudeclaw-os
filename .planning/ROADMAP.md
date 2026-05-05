@@ -2,17 +2,17 @@
 
 ## Overview
 
-ClaudeClaw is a personal multi-agent fleet running on a VPS. This roadmap covers the path from the May 4, 2026 fleet-shipping milestone forward through cross-process delegation, persona tuning, and the SDK Engine rebuild.
+ClaudeClaw is a personal multi-agent fleet running on a VPS. This roadmap now prioritizes making Archon the durable workflow engine for all ClaudeClaw agents before extending cross-process delegation or rebuilding the execution engine.
 
-**Target:** Stage 2 cross-process delegation + persona polish in v1.1, SDK Engine rebuild as v2.0.
+**Target:** Archon-backed agent workflows in v1.1, cross-process delegation and polish in v1.2, SDK Engine rebuild as v2.0.
 
 ## Domain Expertise
 
-None required beyond Node.js / TypeScript / SQLite / systemd / Anthropic SDK fluency.
+Node.js / TypeScript / SQLite / systemd / Anthropic SDK fluency, plus Archon workflow authoring and VPS operational discipline.
 
 ## Current Milestone
 
-**Milestone 2: Cross-Process Delegation + Polish (v1.1)** — extend in-process delegation to cross-process queue + Slack continuity, tighten the personas, and clean up dead code from the Gemini retirement.
+**Milestone 2: Archon Workflow Engine (v1.1)** — make Archon callable from ClaudeClaw's VPS agents, define safe workspace boundaries, teach every persona when to use workflows, and ship a starter workflow pack for coding and business processes.
 
 ## Milestones
 
@@ -28,21 +28,39 @@ Phases:
 - [x] Phase 5: Cross-process Telegram → dashboard streaming — `conversation-log-tailer.ts` re-emits non-main rows on the main process bus, web Chat tabs pick up agent labels (commits `102bd8d`, `74c8e3c`)
 - [x] Phase 6: Memory ingestion health badge — sidebar footer surfaces `getIngestionQuotaStatus` (commit `c213572`)
 - [x] Phase 7: Obsidian vault path fix on specialists — yaml `vault:` paths swapped from macOS to VPS path; per-minute warning spam stopped
-- [x] Phase 8: Linear v1 awareness pack install — appended to `~/.claudeclaw/CLAUDE.md` on local + VPS so all personas know `/linear:drop` vs inter-agent task, slim 3+3, prefix convention
+- [x] Phase 8: Linear v1 awareness pack install — appended to `~/.claudeclaw/CLAUDE.md` on local + VPS so all personas know `/linear:drop` vs inter-agent tasks, slim 3+3 protocol, prefix conventions
 - [x] Phase 9: Stale role-named agents removed from dashboard — deleted leftover `agents/{code,comms,content,ops,research}/agent.yaml` on VPS, registry now clean
 
-### Milestone 2: Cross-Process Delegation + Polish (v1.1)
-**Goal:** Slack delegation works (cross-process), specialist personas reply-vs-execute correctly, dead code from Gemini retirement is gone.
+### Milestone 2: Archon Workflow Engine (v1.1)
+**Goal:** All ClaudeClaw agents can use Archon as the durable workflow engine for coding and business processes while keeping skills/react loops for quick one-off work.
+**Status:** Pending
+
+VPS analysis from 2026-05-05:
+- Archon source checkout exists at `/home/devuser/remote-coding-agent`.
+- `bun run cli workflow list --cwd /home/devuser/claudeclaw` works and discovers 20 bundled workflows.
+- `archon` is not currently on the non-interactive PATH used by SSH/systemd.
+- `~/.archon/.archon/workflows/` still exists and triggers Archon's legacy-path warning; current path should be `~/.archon/workflows/`.
+- ClaudeClaw production checkout is `/home/devuser/claudeclaw`; all six `claudeclaw-*` systemd services are active.
+
+Phases:
+- [ ] Phase 1: VPS Archon runtime surface — create a reliable Archon invocation path for systemd-run ClaudeClaw agents; verify `workflow list` against `/home/devuser/claudeclaw`; fix legacy global workflow path warning; document environment and credential loading. Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04.
+- [ ] Phase 2: Safe workspace and deploy boundary — establish non-production Archon workspaces/worktrees for agent work; document forbidden production state; preserve commit-based deploy and rollback rules. Requirements: SAFE-01, SAFE-02, SAFE-03, SAFE-04.
+- [ ] Phase 3: Agent workflow routing policy — update Ezra, Vera, Poe, Cole, Hopper, and Archie personas with direct-answer vs skill/react-loop vs Archon-workflow guidance, including external-effect approval rules. Requirements: ROUT-01, ROUT-02, ROUT-03, ROUT-04, ROUT-05.
+- [ ] Phase 4: ClaudeClaw workflow pack — add and validate starter workflows for coding plan-to-PR, bugfix, strategy/business ingestion, ops triage, comms/content drafting, and workflow authoring. Requirements: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06.
+- [ ] Phase 5: Workflow observability and cleanup — surface workflow runs in agent responses or hive_mind-style activity, standardize failure reports, and give Archie/Hopper safe inspection and cleanup paths for active/stale runs. Requirements: OBS-01, OBS-02, OBS-03.
+
+### Milestone 3: Cross-Process Delegation + Polish (v1.2)
+**Goal:** Slack delegation works cross-process, specialist personas reply-vs-execute correctly, dead code from Gemini retirement is gone.
 **Status:** Pending
 
 Phases:
-- [ ] Phase 1: Cross-process delegation queue — `delegated_tasks` table; producer in `bot.ts` + `slack-bot.ts` writes row + immediate "dispatched" reply; consumer in each specialist's `index.ts` polls + atomically claims; result delivery via Ezra's bot back to original transport (Slack `thread_ts` or Telegram `chat_id`); state machine `pending → in_progress → completed → delivered` with stale-claim TTL. (~3-4 hrs. Spec: `Business/scaling-engine-ops/work-logs/2026/05/2026-05-04-claudeclaw-delegation-memory-prd.md` §"Stage 2 plan".)
-- [ ] Phase 2: Specialist persona prompt tuning — audit each of 5 specialist `agent.yaml`/`CLAUDE.md` for over-execution bias. Vera shipped `notify.sh` as a "confirm one line" reply on 2026-05-04; likely the others have similar reply-vs-action ambiguity. Add explicit "reply-only unless explicitly told to execute" guidance. (~1-2 hrs.)
-- [ ] Phase 3: Quota-suspension dead-code cleanup — with Gemini fallback gone, `_ingestSuspendedUntil`, `_last429At`, `INGEST_QUOTA_BACKOFF_MS`, and `isQuotaError` in `src/memory-ingest.ts` are unreachable. Remove them and simplify `getIngestionQuotaStatus()` (or drop it + the dashboard badge plumbing). (~30 min.)
-- [ ] Phase 4: Linear awareness pack maintenance — six new `/linear:*` skills landed after the pack was written (`plan-project`, `plan-sprint`, `refine-project`, `evaluate`, `dashboard`, `help`). Update the pack to either include them or explicitly mark them Noah-only. Also remove `/make:work` and `/cos:refine*` from the deprecated list (no longer on disk). (~30 min.)
-- [ ] Phase 5: Auto-route inbound messages — Ezra inspects each incoming message and routes to the right specialist without requiring `@vera:` prefix. Heuristic + LLM-classifier hybrid; falls back to Ezra-handles-it on ambiguity. (Stage 3 of original FULL fleet plan. ~3-4 hrs. Depends on Phase 1 being live.)
+- [ ] Phase 1: Cross-process delegation queue — `delegated_tasks` table; producer in `bot.ts` + `slack-bot.ts` writes row + immediate "dispatched" reply; consumer in each specialist's `index.ts` polls + atomically claims; result delivery via Ezra's bot back to original transport (Slack `thread_ts` or Telegram `chat_id`); state machine `pending → in_progress → completed → delivered` with stale-claim TTL. Spec: `Business/scaling-engine-ops/work-logs/2026/05/2026-05-04-claudeclaw-delegation-memory-prd.md` §"Stage 2 plan".
+- [ ] Phase 2: Specialist persona prompt tuning — audit each of 5 specialist `agent.yaml`/`CLAUDE.md` for over-execution bias. Vera shipped `notify.sh` as a "confirm one line" reply on 2026-05-04; likely the others have similar reply-vs-action ambiguity.
+- [ ] Phase 3: Quota-suspension dead-code cleanup — with Gemini fallback gone, `_ingestSuspendedUntil`, `_last429At`, `INGEST_QUOTA_BACKOFF_MS`, and `isQuotaError` in `src/memory-ingest.ts` are unreachable.
+- [ ] Phase 4: Linear awareness pack maintenance — six new `/linear:*` skills landed after the pack was written (`plan-project`, `plan-sprint`, `refine-project`, `evaluate`, `dashboard`, `help`). Update the pack to either include them or explicitly mark them Noah-only.
+- [ ] Phase 5: Auto-route inbound messages — Ezra inspects each incoming message and routes to the right specialist without requiring `@vera:` prefix. Heuristic + LLM-classifier hybrid; falls back to Ezra-handles-it on ambiguity. Depends on the delegation queue and should account for Archon workflow routing.
 
-### Milestone 3: SDK Engine (v2.0)
+### Milestone 4: SDK Engine (v2.0)
 **Goal:** Optional `ENGINE=sdk` backend that calls the Anthropic Messages API directly, bypassing the `claude` CLI subprocess. Lower latency, in-process token accounting, direct streaming. CLI engine remains the default.
 **Status:** Pending — RFC drafted (`docs/rfc-sdk-engine.md`)
 
