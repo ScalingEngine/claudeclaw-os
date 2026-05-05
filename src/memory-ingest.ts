@@ -1,5 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { generateContent, parseJsonResponse } from './gemini.js';
+import { parseJsonResponse } from './gemini.js';
 import { cosineSimilarity, embedText } from './embeddings.js';
 import { getMemoriesWithEmbeddings, saveStructuredMemoryAtomic } from './db.js';
 import { logger } from './logger.js';
@@ -178,25 +178,20 @@ export async function ingestConversationTurn(
       .replace('{USER_MESSAGE}', userMessage.slice(0, 2000))
       .replace('{ASSISTANT_RESPONSE}', assistantResponse.slice(0, 2000));
 
-    // Primary path: Claude Haiku via OAuth (no API key, no quota wall).
-    // We swapped from Gemini because the free-tier RESOURCE_EXHAUSTED
-    // was hitting on every turn and silently killing memory ingestion.
-    let raw: string;
-    try {
-      raw = await extractViaClaude(prompt);
-    } catch (claudeErr) {
-      // Fallback: try Gemini if it has a key configured. The 429 backoff
-      // path inside the catch below handles quota errors gracefully.
-      logger.warn({ err: claudeErr instanceof Error ? claudeErr.message : claudeErr }, 'Claude extraction failed; falling back to Gemini');
-      raw = await generateContent(prompt);
-    }
+    // Haiku-only. The Gemini fallback was retired because the free-tier
+    // RESOURCE_EXHAUSTED was hitting on every turn and silently killing
+    // ingestion; Haiku via OAuth uses the same auth the agents use, so
+    // there's no API key to manage and no separate quota to track. If
+    // Haiku itself ever fails, ingestion drops the turn — the catch
+    // block below logs it.
+    const raw = await extractViaClaude(prompt);
     const result = parseJsonResponse<ExtractionResult & { skip?: boolean }>(raw);
 
     if (!result || result.skip) return false;
 
     // Validate required fields
     if (!result.summary || typeof result.importance !== 'number') {
-      logger.warn({ result }, 'Gemini extraction missing required fields');
+      logger.warn({ result }, 'Memory extraction missing required fields');
       return false;
     }
 
@@ -255,7 +250,7 @@ export async function ingestConversationTurn(
     );
     return true;
   } catch (err) {
-    // Gemini failure should never block the bot.
+    // Extraction failure should never block the bot.
     // 429 / quota errors deserve a cooldown — otherwise every turn fires
     // the same failed call and floods the log. Suspend ingestion for the
     // configured window; subsequent calls return early until the window
@@ -268,12 +263,12 @@ export async function ingestConversationTurn(
       if (!wasSuspended) {
         logger.warn(
           { backoffMs: INGEST_QUOTA_BACKOFF_MS },
-          'Memory ingestion quota exceeded (Gemini 429). Suspending ingestion until cooldown expires.',
+          'Memory ingestion quota exceeded. Suspending ingestion until cooldown expires.',
         );
       }
       return false;
     }
-    logger.error({ err }, 'Memory ingestion failed (Gemini)');
+    logger.error({ err }, 'Memory ingestion failed');
     return false;
   }
 }
