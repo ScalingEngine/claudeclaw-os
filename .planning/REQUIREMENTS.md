@@ -7,10 +7,10 @@
 
 ### Archon Runtime
 
-- [ ] **ARCH-01**: Each ClaudeClaw agent can invoke Archon from its VPS runtime environment without relying on an interactive shell profile.
-- [ ] **ARCH-02**: Agents can list available Archon workflows for `/home/devuser/claudeclaw` and receive a successful result.
-- [ ] **ARCH-03**: Archon home-scoped workflows are stored in the current supported path (`~/.archon/workflows/`) with no legacy path warning.
-- [ ] **ARCH-04**: The configured Archon invocation path loads credentials from `~/.archon/.env` without exposing secrets in prompts, logs, or git.
+- [x] **ARCH-01**: Each ClaudeClaw agent can invoke Archon from its VPS runtime environment without relying on an interactive shell profile.
+- [x] **ARCH-02**: Agents can list available Archon workflows for `/home/devuser/claudeclaw` and receive a successful result.
+- [x] **ARCH-03**: Archon home-scoped workflows are stored in the current supported path (`~/.archon/workflows/`) with no legacy path warning.
+- [x] **ARCH-04**: The configured Archon invocation path loads credentials from `~/.archon/.env` without exposing secrets in prompts, logs, or git.
 
 ### Workflow Routing
 
@@ -68,10 +68,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 1 | Human verification needed |
-| ARCH-02 | Phase 1 | Human verification needed |
-| ARCH-03 | Phase 1 | Human verification needed |
-| ARCH-04 | Phase 1 | Human verification needed |
+| ARCH-01 | Phase 1 | Complete |
+| ARCH-02 | Phase 1 | Complete |
+| ARCH-03 | Phase 1 | Complete |
+| ARCH-04 | Phase 1 | Complete |
 | SAFE-01 | Phase 2 | Pending |
 | SAFE-02 | Phase 2 | Pending |
 | SAFE-03 | Phase 2 | Pending |

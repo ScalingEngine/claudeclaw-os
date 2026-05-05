@@ -27,7 +27,7 @@ Noah can DM Ezra with anything — status pulses, decision-blocked items, comms 
 - **Transports:** Telegram (per-bot per-agent), Slack (Ezra-only Socket Mode listener), Dashboard (Hono+SSE+Preact SPA on `:8443` via Tailscale).
 - **Persistence:** SQLite at `store/claudeclaw.db` — `conversation_log`, `memories`, `inter_agent_tasks`, `hive_mind`, `audit_log`, `token_usage`, `scheduled_tasks`.
 - **Memory:** Two layers. Conversational (SQLite, auto-extracted via Haiku per turn) merged at runtime with canonical (NoahBrain vault, Python-compiled, synced via Ezra-Python).
-- **Workflow engine candidate:** Archon source checkout exists on the VPS at `/home/devuser/remote-coding-agent`; default workflows are discoverable against `/home/devuser/claudeclaw` through `bun run cli workflow list --cwd /home/devuser/claudeclaw`.
+- **Workflow engine:** Archon source checkout exists on the VPS at `/home/devuser/remote-coding-agent`; workflows are discoverable against `/home/devuser/claudeclaw` through `/home/devuser/claudeclaw/scripts/archon-vps.sh`, including from `systemd-run --user`.
 - **Deploy:** 6 user-systemd services on `srv1310498` (`claudeclaw-{ezra,vera,poe,cole,hopper,archie}.service`). One shared `.env`, one shared DB, one shared vault.
 
 ## Requirements
@@ -47,12 +47,12 @@ Noah can DM Ezra with anything — status pulses, decision-blocked items, comms 
 - ✓ Per-specialist Obsidian vault scoping (read_only knowledge, queue/briefs writeable)
 - ✓ Memory ingestion health badge in sidebar footer
 - ✓ Linear v1 awareness pack at `~/.claudeclaw/CLAUDE.md` — agents know `/linear:drop` vs inter-agent tasks, slim 3+3 protocol, prefix conventions
+- ✓ Archon command surface for VPS/systemd contexts — wrapper, status doctor, legacy workflow migration, and credential-file permission check validated in Phase 1
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Archon command surface — make Archon callable by all ClaudeClaw agents from non-interactive VPS/systemd contexts.
 - [ ] Agent workflow routing — codify when agents should answer directly, use a skill/react loop, or launch an Archon workflow.
 - [ ] Safe workspaces — establish non-production Archon worktrees/workspaces and secret boundaries for ClaudeClaw-related work.
 - [ ] Persona prompt updates — teach Ezra, Vera, Poe, Cole, Hopper, and Archie the Archon-first workflow policy and approval boundaries.
@@ -96,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-05 after starting v1.1 Archon Workflow Engine milestone*
+*Last updated: 2026-05-05 after verifying Phase 1 VPS Archon runtime surface*

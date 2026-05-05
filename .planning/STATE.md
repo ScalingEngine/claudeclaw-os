@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
-status: human_needed
-last_updated: "2026-05-05T19:58:21Z"
-last_activity: 2026-05-05 -- Phase 01 execution complete; VPS verification required
+status: planning
+last_updated: "2026-05-05T20:03:46Z"
+last_activity: 2026-05-05 -- Phase 1 verified on VPS
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
   completed_plans: 1
   percent: 100
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Milestone 2 Phase 1 — VPS Archon Runtime Surface
+**Current focus:** Milestone 2 Phase 2 — Safe Workspace and Deploy Boundary
 
 ## Current Position
 
 Phase: 1 of 5 in Milestone 2 (Archon Workflow Engine)
 Plan: 1 of 1
-Status: Human verification required
-Last activity: 2026-05-05 -- Phase 01 execution complete; VPS verification required
+Status: Complete
+Last activity: 2026-05-05 -- Phase 1 verified on VPS
 
 ## Next Action
 
-Repair SSH host-key trust for `srv1310498`, then run the VPS verification items in `.planning/phases/01-vps-archon-runtime-surface/01-HUMAN-UAT.md`.
+Plan Phase 2: `/gsd-plan-phase 2`
 
 ## Recent Commits (since milestone bootstrap)
 

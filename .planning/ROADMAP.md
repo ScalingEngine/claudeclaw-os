@@ -37,13 +37,14 @@ Phases:
 
 VPS analysis from 2026-05-05:
 - Archon source checkout exists at `/home/devuser/remote-coding-agent`.
-- `bun run cli workflow list --cwd /home/devuser/claudeclaw` works and discovers 20 bundled workflows.
-- `archon` is not currently on the non-interactive PATH used by SSH/systemd.
-- `~/.archon/.archon/workflows/` still exists and triggers Archon's legacy-path warning; current path should be `~/.archon/workflows/`.
+- `/home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw` works and discovers 21 workflows.
+- `systemd-run --user --wait --collect /home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw` exits 0.
+- `~/.archon/.env` is mode `600` and loaded by the wrapper without printing credential values.
+- `~/.archon/.archon/workflows/` was migrated to `~/.archon/workflows/`; the legacy path warning is gone.
 - ClaudeClaw production checkout is `/home/devuser/claudeclaw`; all six `claudeclaw-*` systemd services are active.
 
 Phases:
-- [ ] Phase 1: VPS Archon runtime surface — create a reliable Archon invocation path for systemd-run ClaudeClaw agents; verify `workflow list` against `/home/devuser/claudeclaw`; fix legacy global workflow path warning; document environment and credential loading. Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04.
+- [x] Phase 1: VPS Archon runtime surface — create a reliable Archon invocation path for systemd-run ClaudeClaw agents; verify `workflow list` against `/home/devuser/claudeclaw`; fix legacy global workflow path warning; document environment and credential loading. Completed 2026-05-05. Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04.
 - [ ] Phase 2: Safe workspace and deploy boundary — establish non-production Archon workspaces/worktrees for agent work; document forbidden production state; preserve commit-based deploy and rollback rules. Requirements: SAFE-01, SAFE-02, SAFE-03, SAFE-04.
 - [ ] Phase 3: Agent workflow routing policy — update Ezra, Vera, Poe, Cole, Hopper, and Archie personas with direct-answer vs skill/react-loop vs Archon-workflow guidance, including external-effect approval rules. Requirements: ROUT-01, ROUT-02, ROUT-03, ROUT-04, ROUT-05.
 - [ ] Phase 4: ClaudeClaw workflow pack — add and validate starter workflows for coding plan-to-PR, bugfix, strategy/business ingestion, ops triage, comms/content drafting, and workflow authoring. Requirements: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06.
