@@ -83,14 +83,18 @@ systemd-run --user --wait --collect /home/devuser/claudeclaw/scripts/archon-vps.
 Capture workflow-list output for warning checks:
 
 ```bash
-/home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw 2>&1 | tee /tmp/archon-workflow-list.txt
-if grep -Eiq 'legacy|deprecated|\.archon/\.archon/workflows' /tmp/archon-workflow-list.txt; then
+ARCHON_WORKFLOW_LIST="$(mktemp "${TMPDIR:-/tmp}/archon-workflow-list.XXXXXX")"
+trap 'rm -f "$ARCHON_WORKFLOW_LIST"' EXIT
+
+/home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw 2>&1 | tee "$ARCHON_WORKFLOW_LIST"
+if grep -Eiq 'legacy|deprecated|\.archon/\.archon/workflows' "$ARCHON_WORKFLOW_LIST"; then
   echo "legacy workflow warning found" >&2
   exit 1
 fi
 ```
 
 The final warning scan should exit 0 only when no legacy/deprecated workflow warning is present.
+For ad hoc debugging only, the captured output can be copied to `/tmp/archon-workflow-list.txt` after the warning scan passes; do not write directly to that fixed path from `tee`.
 
 ## Rollback
 
