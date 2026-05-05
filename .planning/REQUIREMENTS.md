@@ -68,10 +68,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 1 | Pending |
-| ARCH-02 | Phase 1 | Pending |
-| ARCH-03 | Phase 1 | Pending |
-| ARCH-04 | Phase 1 | Pending |
+| ARCH-01 | Phase 1 | Human verification needed |
+| ARCH-02 | Phase 1 | Human verification needed |
+| ARCH-03 | Phase 1 | Human verification needed |
+| ARCH-04 | Phase 1 | Human verification needed |
 | SAFE-01 | Phase 2 | Pending |
 | SAFE-02 | Phase 2 | Pending |
 | SAFE-03 | Phase 2 | Pending |
