@@ -30,10 +30,20 @@ file_mode() {
 
 workflow_entry_count() {
   awk '
-    /^[[:space:]]*$/ { next }
-    /^(bun|npm|yarn|pnpm)[[:space:]]/ { next }
-    /^[$>]/ { next }
-    /workflow|^[[:space:]]*[-*][[:space:]]*[[:alnum:]_.-]+/ { count++ }
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+    }
+    line == "" { next }
+    line ~ /^(bun|npm|yarn|pnpm)[[:space:]]/ { next }
+    line ~ /^[$>]/ { next }
+    line ~ /^available workflows:?$/ { next }
+    line ~ /^workflows:?$/ { next }
+    line ~ /^[[:digit:]]+[[:space:]]+workflows?$/ { count++; next }
+    line ~ /^[-*][[:space:]]*[[:alnum:]_.-]+/ { count++; next }
+    line ~ /^[[:alnum:]_.-]+[[:space:]]+-[[:space:]]+/ { count++; next }
+    line ~ /^[[:alnum:]_.-]+\.ya?ml([[:space:]]|$)/ { count++; next }
     END { print count + 0 }
   '
 }

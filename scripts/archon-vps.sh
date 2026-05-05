@@ -6,11 +6,19 @@ ARCHON_PROJECT_CWD="${ARCHON_PROJECT_CWD:-/home/devuser/claudeclaw}"
 ARCHON_ENV_FILE="${ARCHON_ENV_FILE:-$HOME/.archon/.env}"
 BUN_BIN="${BUN_BIN:-bun}"
 
+if [[ "$BUN_BIN" != */* ]]; then
+  BUN_BIN="$(command -v "$BUN_BIN")" || {
+    echo "bun not found: ${BUN_BIN}" >&2
+    exit 1
+  }
+fi
+
 # Credentials from the env file must not be able to retarget the wrapper.
 WRAPPER_ARCHON_REPO="$ARCHON_REPO"
 WRAPPER_ARCHON_PROJECT_CWD="$ARCHON_PROJECT_CWD"
 WRAPPER_ARCHON_ENV_FILE="$ARCHON_ENV_FILE"
 WRAPPER_BUN_BIN="$BUN_BIN"
+readonly WRAPPER_ARCHON_REPO WRAPPER_ARCHON_PROJECT_CWD WRAPPER_ARCHON_ENV_FILE WRAPPER_BUN_BIN
 
 if [ -f "$ARCHON_ENV_FILE" ]; then
   set -a
@@ -38,5 +46,5 @@ if [ "$#" -eq 0 ]; then
   set -- workflow list --cwd "$ARCHON_PROJECT_CWD"
 fi
 
-# BUN_BIN defaults to bun, so this executes the Archon CLI as bun run cli.
+# BUN_BIN defaults to the resolved bun path, so this executes the Archon CLI as bun run cli.
 (cd "$ARCHON_REPO" && exec "$BUN_BIN" run cli "$@")
