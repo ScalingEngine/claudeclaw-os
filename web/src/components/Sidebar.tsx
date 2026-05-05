@@ -112,14 +112,41 @@ export function Sidebar() {
   );
 }
 
-interface Health { killSwitches: Record<string, boolean>; }
+interface Health {
+  killSwitches: Record<string, boolean>;
+  memoryIngestion?: { suspended: boolean; suspendedUntil: number | null; last429At: number | null };
+}
 
 function SidebarFooter() {
   const { data } = useFetch<Health>('/api/health', 30_000);
   const switches = data?.killSwitches || {};
   const off = Object.entries(switches).filter(([, on]) => !on);
   const anyOff = off.length > 0;
+  const memPaused = !!data?.memoryIngestion?.suspended;
   const name = workspaceName.value;
+
+  // Status precedence: kill-switch issues are red (a refusal is happening
+  // right now), memory pause is amber (degraded but not blocking), neither
+  // is neutral.
+  const tone: 'fail' | 'warn' | 'ok' = anyOff ? 'fail' : memPaused ? 'warn' : 'ok';
+  const dotBg =
+    tone === 'fail'
+      ? 'color-mix(in srgb, var(--color-status-failed) 18%, transparent)'
+      : tone === 'warn'
+      ? 'color-mix(in srgb, var(--color-status-warning, #d4a017) 22%, transparent)'
+      : 'var(--color-elevated)';
+  const dotColor =
+    tone === 'fail'
+      ? 'var(--color-status-failed)'
+      : tone === 'warn'
+      ? 'var(--color-status-warning, #d4a017)'
+      : 'var(--color-text-muted)';
+
+  const parts: string[] = [];
+  if (anyOff) parts.push(off.length + ' kill switch' + (off.length === 1 ? '' : 'es') + ' off');
+  if (memPaused) parts.push('memory paused');
+  const status = parts.length ? parts.join(' • ') : 'All systems normal';
+
   return (
     <Link
       href="/settings"
@@ -128,22 +155,13 @@ function SidebarFooter() {
       <div class="flex items-center gap-2.5">
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-[var(--color-text-muted)]"
-          style={{
-            backgroundColor: anyOff
-              ? 'color-mix(in srgb, var(--color-status-failed) 18%, transparent)'
-              : 'var(--color-elevated)',
-            color: anyOff ? 'var(--color-status-failed)' : 'var(--color-text-muted)',
-          }}
+          style={{ backgroundColor: dotBg, color: dotColor }}
         >
           ●
         </div>
         <div class="flex-1 min-w-0">
           <div class="text-[var(--color-text)] text-[12.5px] font-medium truncate">{name}</div>
-          <div class="truncate text-[11px]">
-            {anyOff
-              ? off.length + ' kill switch' + (off.length === 1 ? '' : 'es') + ' off'
-              : 'All systems normal'}
-          </div>
+          <div class="truncate text-[11px]">{status}</div>
         </div>
       </div>
     </Link>
