@@ -19,15 +19,17 @@ tech-stack:
 key-files:
   created:
     - scripts/archon-workspace-guard.sh
+    - scripts/test-archon-workspace-guard.sh
     - docs/archon-workspaces.md
   modified:
     - docs/archon-runtime.md
+    - package.json
 key-decisions:
   - "Archon coding workflows must use /home/devuser/claudeclaw-worktrees/<run-id>, while discovery may still inspect /home/devuser/claudeclaw."
-  - "Deploy remains commit-based; loose file copying from worktrees into production is explicitly forbidden."
+  - "Deploy remains commit-based; loose file copying from worktrees into production is explicitly forbidden, and production install/build steps must run before service restart."
 patterns-established:
   - "Workspace guard: resolve paths before boundary checks and print only file paths, never secret contents."
-  - "Safe workspace docs: operators create a disposable worktree, run the guard, validate, then deploy a known-good git commit."
+  - "Safe workspace docs: operators create a disposable worktree, run the guard, validate, install dependencies, build, then deploy a known-good git commit."
 requirements-completed: [SAFE-01, SAFE-02, SAFE-03, SAFE-04]
 duration: 4min
 completed: 2026-05-05
@@ -43,13 +45,14 @@ completed: 2026-05-05
 - **Started:** 2026-05-05T22:54:30Z
 - **Completed:** 2026-05-05T22:58:06Z
 - **Tasks:** 4
-- **Files modified:** 3
+- **Files modified:** 5
 
 ## Accomplishments
 
 - Added `scripts/archon-workspace-guard.sh`, an executable strict-bash preflight that refuses `/home/devuser/claudeclaw`, requires `/home/devuser/claudeclaw-worktrees/`, checks git worktree status, optionally requires a clean checkout, and blocks forbidden production state paths.
 - Added `docs/archon-workspaces.md` with the exact disposable worktree, guard, Archon `--cwd`, validation, deploy, rollback, and cleanup commands.
 - Updated `docs/archon-runtime.md` so workflow discovery can still target production while coding workflows are routed to the safe workspace contract.
+- Closed code-review findings by adding production `npm ci`/`npm run build` steps to deploy and rollback, plus a committed guard regression test exposed as `npm run test:archon-workspace-guard`.
 
 ## Task Commits
 
@@ -63,8 +66,10 @@ Each task was committed atomically:
 ## Files Created/Modified
 
 - `scripts/archon-workspace-guard.sh` - Archon coding workspace safety guard.
+- `scripts/test-archon-workspace-guard.sh` - Regression fixture for allowed worktree, production rejection, forbidden state, and clean-worktree enforcement.
 - `docs/archon-workspaces.md` - Operator runbook for disposable worktrees, forbidden state, commit-based deploy, rollback, and cleanup.
 - `docs/archon-runtime.md` - Runtime bridge section pointing coding workflows to the safe workspace contract.
+- `package.json` - Adds the `test:archon-workspace-guard` script.
 
 ## Decisions Made
 
@@ -83,7 +88,10 @@ None - plan implementation executed as written.
 ## Verification
 
 - `bash -n scripts/archon-workspace-guard.sh` - passed
+- `bash -n scripts/test-archon-workspace-guard.sh` - passed
+- `npm run test:archon-workspace-guard` - passed
 - `npm run typecheck` - passed
+- `npm run build` - passed
 - `grep -q 'SAFE-01' .planning/phases/02-safe-workspace-and-deploy-boundary/02-PLAN.md` - passed
 - `grep -q 'SAFE-02' .planning/phases/02-safe-workspace-and-deploy-boundary/02-PLAN.md` - passed
 - `grep -q 'SAFE-03' .planning/phases/02-safe-workspace-and-deploy-boundary/02-PLAN.md` - passed

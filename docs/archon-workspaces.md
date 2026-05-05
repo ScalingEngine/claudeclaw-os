@@ -86,12 +86,14 @@ cd /home/devuser/claudeclaw
 PRE_DEPLOY_COMMIT="$(git rev-parse HEAD)"
 git fetch origin
 git pull --ff-only origin main
+npm ci
 npm run typecheck
 npm test
+npm run build
 systemctl --user restart 'claudeclaw-*'
 ```
 
-If production should deploy an explicit known-good commit instead of `origin/main`, fetch it, inspect it, and check it out by commit before running the same validation and restart steps.
+If production should deploy an explicit known-good commit instead of `origin/main`, fetch it, inspect it, and check it out by commit before running the same install, validation, build, and restart steps.
 
 ## Rollback
 
@@ -101,7 +103,9 @@ Use the recorded pre-deploy commit as the rollback target:
 cd /home/devuser/claudeclaw
 ROLLBACK_COMMIT="${PRE_DEPLOY_COMMIT}"
 git checkout --detach "${ROLLBACK_COMMIT}"
+npm ci
 npm run typecheck
+npm run build
 systemctl --user restart 'claudeclaw-*'
 ```
 
