@@ -51,11 +51,14 @@ Copy existing home-scoped workflows into the current supported directory before 
 
 ```bash
 mkdir -p ~/.archon/workflows
-rsync -a ~/.archon/.archon/workflows/ ~/.archon/workflows/
-mv ~/.archon/.archon/workflows ~/.archon/.archon/workflows.migrated-$(date +%Y%m%d%H%M%S)
+if [ -d ~/.archon/.archon/workflows ]; then
+  rsync -a ~/.archon/.archon/workflows/ ~/.archon/workflows/ --dry-run
+  rsync -a --ignore-existing ~/.archon/.archon/workflows/ ~/.archon/workflows/
+  mv ~/.archon/.archon/workflows ~/.archon/.archon/workflows.migrated-$(date +%Y%m%d%H%M%S)
+fi
 ```
 
-The copy step protects custom workflows before the old path is renamed. After cleanup, workflow discovery should not mention `legacy`, `deprecated`, or `.archon/.archon/workflows`.
+The dry-run line shows what the legacy copy would add before anything changes. The real copy step protects custom workflows before the old path is renamed. `--ignore-existing` prevents stale legacy workflows from overwriting files already in the supported directory; review same-name conflicts separately before replacing anything. After cleanup, workflow discovery should not mention `legacy`, `deprecated`, or `.archon/.archon/workflows`.
 
 ## Verification
 
@@ -81,10 +84,13 @@ Capture workflow-list output for warning checks:
 
 ```bash
 /home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw 2>&1 | tee /tmp/archon-workflow-list.txt
-grep -Ei 'legacy|deprecated|\.archon/\.archon/workflows' /tmp/archon-workflow-list.txt
+if grep -Eiq 'legacy|deprecated|\.archon/\.archon/workflows' /tmp/archon-workflow-list.txt; then
+  echo "legacy workflow warning found" >&2
+  exit 1
+fi
 ```
 
-The final `grep` should produce no matches.
+The final warning scan should exit 0 only when no legacy/deprecated workflow warning is present.
 
 ## Rollback
 

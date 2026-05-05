@@ -28,6 +28,16 @@ file_mode() {
   fi
 }
 
+workflow_entry_count() {
+  awk '
+    /^[[:space:]]*$/ { next }
+    /^(bun|npm|yarn|pnpm)[[:space:]]/ { next }
+    /^[$>]/ { next }
+    /workflow|^[[:space:]]*[-*][[:space:]]*[[:alnum:]_.-]+/ { count++ }
+    END { print count + 0 }
+  '
+}
+
 if [ -d "$ARCHON_REPO" ]; then
   report_ok "Archon repo" "$ARCHON_REPO"
 else
@@ -81,6 +91,10 @@ WORKFLOW_OUTPUT="$("$ARCHON_WRAPPER" workflow list --cwd "$ARCHON_PROJECT_CWD" 2
 
 if printf '%s\n' "$WORKFLOW_OUTPUT" | grep -Eiq '(\.archon/\.archon/workflows|legacy|deprecated)'; then
   report_fail "Workflow list" "output mentions legacy or deprecated workflow path"
+elif printf '%s\n' "$WORKFLOW_OUTPUT" | grep -Eiq '(no workflows|0 workflows|0 workflow|not found)'; then
+  report_fail "Workflow list" "no workflows returned for $ARCHON_PROJECT_CWD"
+elif [ "$(printf '%s\n' "$WORKFLOW_OUTPUT" | workflow_entry_count)" -eq 0 ]; then
+  report_fail "Workflow list" "no workflow entries returned for $ARCHON_PROJECT_CWD"
 else
   report_ok "Workflow list" "workflow discovery succeeded for $ARCHON_PROJECT_CWD"
 fi
