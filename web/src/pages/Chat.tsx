@@ -62,7 +62,10 @@ export function Chat() {
       ? `/api/chat/history?chatId=${encodeURIComponent(chatId)}&limit=50`
       : `/api/agents/${activeAgent}/conversation?chatId=${encodeURIComponent(chatId)}&limit=50`;
     apiGet<{ turns: Turn[] }>(path)
-      .then((d) => setTurns(d.turns || []))
+      // Both endpoints return turns DESC (newest first). Render
+      // chronologically so auto-scroll-to-bottom lands on the latest
+      // message, matching every other chat UI on earth.
+      .then((d) => setTurns([...(d.turns || [])].reverse()))
       .catch((e) => setError(e?.message || String(e)))
       .finally(() => setLoading(false));
   }, [activeAgent]);
