@@ -22,10 +22,10 @@
 
 ### Safe Workspaces
 
-- [ ] **SAFE-01**: Archon coding workflows run in isolated worktrees or a non-production workspace, not directly in `/home/devuser/claudeclaw`.
-- [ ] **SAFE-02**: Production `.env`, SQLite databases, OAuth tokens, and live agent configs are never copied into Archon worktrees.
-- [ ] **SAFE-03**: ClaudeClaw deploy remains commit-based: production pulls known-good branches or commits after validation.
-- [ ] **SAFE-04**: Rollback and verification commands are documented for any workflow that touches production-adjacent code or config.
+- [x] **SAFE-01**: Archon coding workflows run in isolated worktrees or a non-production workspace, not directly in `/home/devuser/claudeclaw`.
+- [x] **SAFE-02**: Production `.env`, SQLite databases, OAuth tokens, and live agent configs are never copied into Archon worktrees.
+- [x] **SAFE-03**: ClaudeClaw deploy remains commit-based: production pulls known-good branches or commits after validation.
+- [x] **SAFE-04**: Rollback and verification commands are documented for any workflow that touches production-adjacent code or config.
 
 ### Workflow Pack
 
@@ -72,10 +72,10 @@
 | ARCH-02 | Phase 1 | Complete |
 | ARCH-03 | Phase 1 | Complete |
 | ARCH-04 | Phase 1 | Complete |
-| SAFE-01 | Phase 2 | Pending |
-| SAFE-02 | Phase 2 | Pending |
-| SAFE-03 | Phase 2 | Pending |
-| SAFE-04 | Phase 2 | Pending |
+| SAFE-01 | Phase 2 | Complete |
+| SAFE-02 | Phase 2 | Complete |
+| SAFE-03 | Phase 2 | Complete |
+| SAFE-04 | Phase 2 | Complete |
 | ROUT-01 | Phase 3 | Pending |
 | ROUT-02 | Phase 3 | Pending |
 | ROUT-03 | Phase 3 | Pending |

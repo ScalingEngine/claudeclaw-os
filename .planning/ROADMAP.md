@@ -33,7 +33,7 @@ Phases:
 
 ### Milestone 2: Archon Workflow Engine (v1.1)
 **Goal:** All ClaudeClaw agents can use Archon as the durable workflow engine for coding and business processes while keeping skills/react loops for quick one-off work.
-**Status:** Pending
+**Status:** Phase 2 complete; ready for verification
 
 VPS analysis from 2026-05-05:
 - Archon source checkout exists at `/home/devuser/remote-coding-agent`.
@@ -45,7 +45,7 @@ VPS analysis from 2026-05-05:
 
 Phases:
 - [x] Phase 1: VPS Archon runtime surface — create a reliable Archon invocation path for systemd-run ClaudeClaw agents; verify `workflow list` against `/home/devuser/claudeclaw`; fix legacy global workflow path warning; document environment and credential loading. Completed 2026-05-05. Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04.
-- [ ] Phase 2: Safe workspace and deploy boundary — establish non-production Archon workspaces/worktrees for agent work; document forbidden production state; preserve commit-based deploy and rollback rules. Requirements: SAFE-01, SAFE-02, SAFE-03, SAFE-04.
+- [x] Phase 2: Safe workspace and deploy boundary — establish non-production Archon workspaces/worktrees for agent work; document forbidden production state; preserve commit-based deploy and rollback rules. Completed 2026-05-05. Requirements: SAFE-01, SAFE-02, SAFE-03, SAFE-04.
   - Wave 1: Plan 01 — safe Archon coding workspace boundary (`02-PLAN.md`).
   - Cross-cutting constraints: refuse `/home/devuser/claudeclaw` as a coding workspace; forbid copied `.env`, SQLite databases, OAuth tokens, and live agent configs; preserve commit-based deploy and rollback commands.
 - [ ] Phase 3: Agent workflow routing policy — update Ezra, Vera, Poe, Cole, Hopper, and Archie personas with direct-answer vs skill/react-loop vs Archon-workflow guidance, including external-effect approval rules. Requirements: ROUT-01, ROUT-02, ROUT-03, ROUT-04, ROUT-05.
