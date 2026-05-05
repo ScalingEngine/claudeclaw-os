@@ -1,0 +1,4 @@
+interface:
+  display_name: "ClaudeClaw"
+  short_description: "Develop, deploy, and operate Noah's ClaudeClaw VPS agent fleet."
+  default_prompt: "Use the ClaudeClaw skill to help develop, deploy, operate, or debug the ClaudeClaw multi-agent fleet safely."
