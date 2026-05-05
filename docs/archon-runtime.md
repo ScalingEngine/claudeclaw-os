@@ -6,6 +6,16 @@ This runbook covers the Phase 1 Archon runtime surface for ClaudeClaw on the VPS
 
 Phase 1 verifies workflow discovery only; coding workflows must wait for the safe workspace boundary in Phase 2.
 
+## Coding Workflow Boundary
+
+Workflow discovery may still target /home/devuser/claudeclaw.
+Coding workflows must not run against /home/devuser/claudeclaw.
+Use docs/archon-workspaces.md to create /home/devuser/claudeclaw-worktrees/<run-id> and run scripts/archon-workspace-guard.sh before any Archon coding workflow.
+
+```bash
+/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
+```
+
 ## Files and Paths
 
 - ClaudeClaw production checkout: `/home/devuser/claudeclaw`
