@@ -43,6 +43,7 @@ workflow_entry_count() {
     line ~ /^[[:digit:]]+[[:space:]]+workflows?$/ { next }
     line ~ /^[-*][[:space:]]*[[:alnum:]_.-]+/ { count++; next }
     line ~ /^[[:alnum:]_.-]+[[:space:]]+-[[:space:]]+/ { count++; next }
+    line ~ /^archon-[[:alnum:]_.-]+$/ { count++; next }
     line ~ /^[[:alnum:]_.-]+\.ya?ml([[:space:]]|$)/ { count++; next }
     END { print count + 0 }
   '
