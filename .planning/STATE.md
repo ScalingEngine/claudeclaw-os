@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
-status: complete
-last_updated: "2026-05-06T12:43:59.947Z"
-last_activity: 2026-05-06 -- Phase 04 GAP-01 complete
+status: in_progress
+last_updated: "2026-05-06T17:18:17Z"
+last_activity: 2026-05-06 -- Phase 04 VPS workflow-pack verification passed
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
   total_plans: 5
   completed_plans: 5
-  percent: 100
+  percent: 80
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Phase 04 complete — claudeclaw-workflow-pack
+**Current focus:** Phase 05 planning — workflow observability and cleanup
 
 ## Current Position
 
-Phase: 04 (claudeclaw-workflow-pack) — COMPLETE
+Phase: 04 (claudeclaw-workflow-pack) — VERIFIED COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-05-06 -- Phase 04 GAP-01 complete
+Last activity: 2026-05-06 -- VPS install/list verification passed; six `claudeclaw-*` workflows live in Archon runtime
 
 ## Next Action
 
-Run Phase 4 verification and VPS workflow install/list checks, then continue to Phase 5 workflow observability planning.
+Plan Phase 05 workflow observability and cleanup.
 
 ## Decisions
 
@@ -43,6 +43,7 @@ Run Phase 4 verification and VPS workflow install/list checks, then continue to 
 - [Phase 04]: ClaudeClaw workflow sources live in archon/workflows/ and install into ~/.archon/workflows on the VPS.
 - [Phase 04]: Local workflow pack validation is deterministic and grep-based; VPS Archon schema/list validation remains an operator install step.
 - [Phase 04]: Coding and bugfix workflows require /home/devuser/claudeclaw-worktrees/<run-id> plus scripts/archon-workspace-guard.sh before implementation.
+- [Phase 04]: VPS verification passed with `home_workflows_loaded: 7`, `workflows_discovery_completed: 27`, `errorCount: 0`, and all six `claudeclaw-*` workflows present.
 - [Phase 04 GAP-01]: Workflow installs require clean staged and unstaged archon/workflows/claudeclaw-*.yaml sources before runtime copy or removal.
 - [Phase 04 GAP-01]: Installer synchronization removes stale installed claudeclaw-*.yaml files only inside the owned runtime namespace.
 - [Phase 04 GAP-01]: Local validation preserves the required modern Bash installer contract while adding Bash 3 compatibility fallbacks for macOS.
@@ -72,5 +73,4 @@ Run Phase 4 verification and VPS workflow install/list checks, then continue to 
 - **Memory accumulation rate** — first verified memory landed 2026-05-04 (importance 0.75, AI agent pricing). Watch memories table for one week before deciding on bidirectional sync.
 - **Persona over-execution** — Vera shipped `notify.sh` for a "confirm" prompt. Whether the other 4 specialists have the same bias is unmeasured.
 - **VPS-only deploy** — local Mac fleet config exists at `~/.claudeclaw/agents/` but isn't actively running. If we ever spin up a local mirror, the obsidian `vault:` paths point at the macOS vault; VPS yaml were patched on 2026-05-04 but local is untouched.
-- **Archon PATH gap** — `/home/devuser/remote-coding-agent` works via `bun run cli`, but `archon` is not on the non-interactive PATH. ClaudeClaw systemd agents need a reliable invocation surface before personas can depend on it.
-- **Archon legacy workflow path** — VPS has `~/.archon/.archon/workflows/se-strategy-ingest.yaml`; Archon warns that workflows should now live under `~/.archon/workflows/`.
+- **Workflow observability gap** — workflows now install and load correctly, but agents still need a standard way to surface run state, failures, and stale-run cleanup in user-visible responses.
