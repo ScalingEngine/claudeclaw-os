@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:agent-workflow-routing": "bash scripts/check-agent-workflow-routing.sh",
+    "check:archon-workflow-pack": "bash scripts/check-archon-workflow-pack.sh",
     "test:archon-workspace-guard": "bash scripts/test-archon-workspace-guard.sh",
     "migrate": "tsx scripts/migrate.ts",
     "setup": "tsx scripts/setup.ts",
