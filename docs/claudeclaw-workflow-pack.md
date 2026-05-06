@@ -33,6 +33,8 @@ The installer synchronizes the owned `claudeclaw-*.yaml` namespace in `~/.archon
 
 ## Verify
 
+Run this check from a clean `archon/workflows/claudeclaw-coding-plan-to-pr.yaml` state; the validator temporarily edits that tracked workflow file and aborts instead of overwriting pre-existing staged or unstaged changes.
+
 Run local deterministic validation:
 
 ```bash

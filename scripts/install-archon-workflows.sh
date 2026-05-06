@@ -127,6 +127,18 @@ else
   printf 'Installing %s workflow file(s) to %s\n' "${#WORKFLOW_FILES[@]}" "$ARCHON_WORKFLOWS_DIR"
 fi
 
+for workflow_file in "${WORKFLOW_FILES[@]}"; do
+  workflow_name="$(basename "$workflow_file")"
+  target_file="$ARCHON_WORKFLOWS_DIR/$workflow_name"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf 'DRY-RUN: %s -> %s\n' "$workflow_name" "$target_file"
+  else
+    install -m 0644 "$workflow_file" "$target_file"
+    printf 'INSTALLED: %s -> %s\n' "$workflow_name" "$target_file"
+  fi
+done
+
 shopt -s nullglob
 for target_file in "$ARCHON_WORKFLOWS_DIR"/claudeclaw-*.yaml; do
   target_name="$(basename "$target_file")"
@@ -140,15 +152,3 @@ for target_file in "$ARCHON_WORKFLOWS_DIR"/claudeclaw-*.yaml; do
   fi
 done
 shopt -u nullglob
-
-for workflow_file in "${WORKFLOW_FILES[@]}"; do
-  workflow_name="$(basename "$workflow_file")"
-  target_file="$ARCHON_WORKFLOWS_DIR/$workflow_name"
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    printf 'DRY-RUN: %s -> %s\n' "$workflow_name" "$target_file"
-  else
-    install -m 0644 "$workflow_file" "$target_file"
-    printf 'INSTALLED: %s -> %s\n' "$workflow_name" "$target_file"
-  fi
-done
