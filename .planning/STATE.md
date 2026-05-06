@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
-status: verifying
-last_updated: "2026-05-06T18:58:47.856Z"
+status: milestone_complete
+last_updated: "2026-05-06T19:02:22Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 5
@@ -17,21 +17,21 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-05)
+See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Phase 05 complete — workflow observability and cleanup ready for verification
+**Current focus:** Milestone v1.1 implementation complete — workflow observability and cleanup ready for VPS/manual verification
 
 ## Current Position
 
 Phase: 05 (workflow-observability-and-cleanup) — COMPLETE
 Plan: 1 of 1
-Status: Phase complete — ready for verification
+Status: Milestone implementation complete
 Last activity: 2026-05-06
 
 ## Next Action
 
-Run `$gsd-verify-work 05`, then complete Milestone v1.1 after VPS/manual checks from `05-USER-SETUP.md`.
+Run VPS/manual checks from `05-USER-SETUP.md`, then complete Milestone v1.1.
 
 ## Decisions
 

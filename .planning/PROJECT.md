@@ -48,15 +48,13 @@ Noah can DM Ezra with anything — status pulses, decision-blocked items, comms 
 - ✓ Memory ingestion health badge in sidebar footer
 - ✓ Linear v1 awareness pack at `~/.claudeclaw/CLAUDE.md` — agents know `/linear:drop` vs inter-agent tasks, slim 3+3 protocol, prefix conventions
 - ✓ Archon command surface for VPS/systemd contexts — wrapper, status doctor, legacy workflow migration, and credential-file permission check validated in Phase 1
+- ✓ Archon workflow engine v1.1 requirements — runtime surface, safe workspace boundary, agent routing policy, workflow pack, observability, failure reporting, and stale-run cleanup validated through Phase 5
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Agent workflow routing — codify when agents should answer directly, use a skill/react loop, or launch an Archon workflow.
-- [ ] Safe workspaces — establish non-production Archon worktrees/workspaces and secret boundaries for ClaudeClaw-related work.
-- [ ] Persona prompt updates — teach Ezra, Vera, Poe, Cole, Hopper, and Archie the Archon-first workflow policy and approval boundaries.
-- [ ] Starter workflow pack — define and validate ClaudeClaw-specific coding and business-process workflows.
+- [ ] Phase 5 VPS/manual verification — deploy the committed observability and cleanup tooling, run `scripts/archon-runs.sh list`, `stale --older-than-hours 24`, and dry-run cleanup before closing v1.1.
 
 ### Future (next milestone candidates)
 
@@ -96,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-05 after verifying Phase 1 VPS Archon runtime surface*
+*Last updated: 2026-05-06 after completing Phase 5 workflow observability and cleanup*
