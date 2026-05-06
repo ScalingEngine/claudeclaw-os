@@ -6,6 +6,35 @@ SOURCE_DIR="${ROOT}/archon/workflows"
 ARCHON_WORKFLOWS_DIR="${ARCHON_WORKFLOWS_DIR:-$HOME/.archon/workflows}"
 DRY_RUN=0
 
+if ! type mapfile >/dev/null 2>&1; then
+  mapfile() {
+    local delimiter=$'\n'
+    local array_name
+    local item
+    local quoted
+
+    if [ "${1:-}" = "-d" ]; then
+      delimiter="$2"
+      shift 2
+    fi
+
+    array_name="$1"
+    eval "$array_name=()"
+
+    if [ "$delimiter" = "" ]; then
+      while IFS= read -r -d '' item; do
+        printf -v quoted '%q' "$item"
+        eval "$array_name+=(\$quoted)"
+      done
+    else
+      while IFS= read -r item; do
+        printf -v quoted '%q' "$item"
+        eval "$array_name+=(\$quoted)"
+      done
+    fi
+  }
+fi
+
 usage() {
   printf 'Usage: %s [--dry-run]\n' "$(basename "$0")"
   printf 'Installs require a clean committed workflow source tree.\n'
@@ -59,10 +88,37 @@ for i in "${!WORKFLOW_FILES[@]}"; do
   WORKFLOW_FILES[$i]="$ROOT/${WORKFLOW_FILES[$i]}"
 done
 
-declare -A DESIRED_WORKFLOWS=()
-for workflow_file in "${WORKFLOW_FILES[@]}"; do
-  DESIRED_WORKFLOWS["$(basename "$workflow_file")"]=1
-done
+DESIRED_WORKFLOWS_IS_ASSOC=0
+if (declare -A __claudeclaw_assoc_test) 2>/dev/null; then
+  declare -A DESIRED_WORKFLOWS=()
+  DESIRED_WORKFLOWS_IS_ASSOC=1
+  for workflow_file in "${WORKFLOW_FILES[@]}"; do
+    DESIRED_WORKFLOWS["$(basename "$workflow_file")"]=1
+  done
+else
+  DESIRED_WORKFLOWS=()
+  for workflow_file in "${WORKFLOW_FILES[@]}"; do
+    DESIRED_WORKFLOWS+=("$(basename "$workflow_file")")
+  done
+fi
+
+workflow_is_desired() {
+  local workflow_name="$1"
+  local desired_name
+
+  if [ "$DESIRED_WORKFLOWS_IS_ASSOC" -eq 1 ]; then
+    [ -n "${DESIRED_WORKFLOWS[$workflow_name]+x}" ]
+    return
+  fi
+
+  for desired_name in "${DESIRED_WORKFLOWS[@]}"; do
+    if [ "$desired_name" = "$workflow_name" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
 
 if [ "$DRY_RUN" -eq 1 ]; then
   printf 'DRY-RUN: would install %s workflow file(s) to %s\n' "${#WORKFLOW_FILES[@]}" "$ARCHON_WORKFLOWS_DIR"
@@ -74,7 +130,7 @@ fi
 shopt -s nullglob
 for target_file in "$ARCHON_WORKFLOWS_DIR"/claudeclaw-*.yaml; do
   target_name="$(basename "$target_file")"
-  if [ -z "${DESIRED_WORKFLOWS[$target_name]+x}" ]; then
+  if ! workflow_is_desired "$target_name"; then
     if [ "$DRY_RUN" -eq 1 ]; then
       printf 'DRY-RUN: would remove stale workflow %s\n' "$target_file"
     else
