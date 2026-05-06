@@ -14,11 +14,11 @@
 
 ### Workflow Routing
 
-- [ ] **ROUT-01**: Ezra has a written routing rule for direct answer vs skill/react loop vs Archon workflow.
-- [ ] **ROUT-02**: Vera, Poe, Cole, Hopper, and Archie each have role-specific guidance for when to launch or recommend an Archon workflow.
-- [ ] **ROUT-03**: Agents use skills and react loops for one-off tasks and quick repeatable actions.
-- [ ] **ROUT-04**: Agents use Archon workflows for coding and business processes that require phases, gates, artifacts, approvals, retries, or repeatability.
-- [ ] **ROUT-05**: Ambiguous external-effect workflows require Noah approval before sending, posting, deploying, closing issues, or mutating production data.
+- [x] **ROUT-01**: Ezra has a written routing rule for direct answer vs skill/react loop vs Archon workflow.
+- [x] **ROUT-02**: Vera, Poe, Cole, Hopper, and Archie each have role-specific guidance for when to launch or recommend an Archon workflow.
+- [x] **ROUT-03**: Agents use skills and react loops for one-off tasks and quick repeatable actions.
+- [x] **ROUT-04**: Agents use Archon workflows for coding and business processes that require phases, gates, artifacts, approvals, retries, or repeatability.
+- [x] **ROUT-05**: Ambiguous external-effect workflows require Noah approval before sending, posting, deploying, closing issues, or mutating production data.
 
 ### Safe Workspaces
 
@@ -76,11 +76,11 @@
 | SAFE-02 | Phase 2 | Complete |
 | SAFE-03 | Phase 2 | Complete |
 | SAFE-04 | Phase 2 | Complete |
-| ROUT-01 | Phase 3 | Pending |
-| ROUT-02 | Phase 3 | Pending |
-| ROUT-03 | Phase 3 | Pending |
-| ROUT-04 | Phase 3 | Pending |
-| ROUT-05 | Phase 3 | Pending |
+| ROUT-01 | Phase 3 | Complete |
+| ROUT-02 | Phase 3 | Complete |
+| ROUT-03 | Phase 3 | Complete |
+| ROUT-04 | Phase 3 | Complete |
+| ROUT-05 | Phase 3 | Complete |
 | FLOW-01 | Phase 4 | Pending |
 | FLOW-02 | Phase 4 | Pending |
 | FLOW-03 | Phase 4 | Pending |
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-05-05*
-*Last updated: 2026-05-05 after initial definition*
+*Last updated: 2026-05-06 after completing Phase 3 routing policy*
