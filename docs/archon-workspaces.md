@@ -7,7 +7,7 @@ This runbook defines the safe workspace boundary for Archon coding workflows tha
 ## Allowed Paths
 
 - Production checkout: `/home/devuser/claudeclaw`
-- Archon-managed worktree root: `~/.archon/workspaces/.../worktrees/...`
+- Archon-managed worktree root: `~/.archon/workspaces/devuser/claudeclaw/worktrees/...`
 - Legacy/manual worktree root: `/home/devuser/claudeclaw-worktrees`
 - Archon source checkout: `/home/devuser/remote-coding-agent`
 
@@ -21,7 +21,7 @@ cd /home/devuser/claudeclaw
 scripts/archon-vps.sh workflow run claudeclaw-coding-plan-to-pr --cwd /home/devuser/claudeclaw --branch "archon/${RUN_ID}" "Implement the approved objective"
 ```
 
-The branch is the reviewable deployment artifact. Archon stores the managed worktree under `~/.archon/workspaces/.../worktrees/...`; keep all generated code, tests, and docs inside that worktree until the branch or commit is validated.
+The branch is the reviewable deployment artifact. Archon stores the managed worktree under `~/.archon/workspaces/devuser/claudeclaw/worktrees/...`; keep all generated code, tests, and docs inside that worktree until the branch or commit is validated.
 
 ## Run the Workspace Guard
 

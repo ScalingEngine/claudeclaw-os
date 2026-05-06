@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROD_CLAUDECLAW_CWD="${PROD_CLAUDECLAW_CWD:-/home/devuser/claudeclaw}"
 ARCHON_WORKTREE_ROOT="${ARCHON_WORKTREE_ROOT:-/home/devuser/claudeclaw-worktrees}"
-ARCHON_MANAGED_WORKTREE_ROOT="${ARCHON_MANAGED_WORKTREE_ROOT:-$HOME/.archon/workspaces}"
+ARCHON_MANAGED_WORKTREE_ROOT="${ARCHON_MANAGED_WORKTREE_ROOT:-$HOME/.archon/workspaces/devuser/claudeclaw}"
 
 COMMAND="${1:-list}"
 OLDER_THAN_HOURS=24
