@@ -50,7 +50,10 @@ scan_forbidden_state() {
 
   while IFS= read -r candidate; do
     [ -n "$candidate" ] || continue
-    record_forbidden ".env.*" "${candidate#"$workspace/"}"
+    case "${candidate#"$workspace/"}" in
+      .env.example) ;;
+      *) record_forbidden ".env.*" "${candidate#"$workspace/"}" ;;
+    esac
   done < <(find "$workspace" -maxdepth 1 -name '.env.*' -print)
 
   if [ -d "$workspace/store" ]; then

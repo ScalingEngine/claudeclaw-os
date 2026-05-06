@@ -45,9 +45,10 @@ printf 'fixture\n' > "${src}/file.txt"
 git -C "$src" add file.txt
 git -C "$src" commit -qm init
 git -C "$src" worktree add -q "$workspace" HEAD
+touch "${workspace}/.env.example"
 
 assert_pass \
-  "accepts clean worktree under allowed root" \
+  "accepts clean worktree under allowed root with env example" \
   env PROD_CLAUDECLAW_CWD="$prod" ARCHON_WORKTREE_ROOT="$worktree_root" "$GUARD" "$workspace"
 
 assert_fail \

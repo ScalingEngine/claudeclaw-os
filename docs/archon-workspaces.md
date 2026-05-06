@@ -62,7 +62,7 @@ Workflow output should name the branch, commit, validation commands, and any app
 - `agents/*/CLAUDE.md`
 - `agents/*/agent.yaml`
 
-Use example files and templates only. Do not copy production credentials, local SQLite state, OAuth browser state, or live agent overlays into disposable Archon worktrees.
+Use committed example files and templates only. For example, `.env.example` is allowed, but copied or generated environment files such as `.env`, `.env.local`, and `.env.test-forbidden` are not. Do not copy production credentials, local SQLite state, OAuth browser state, or live agent overlays into disposable Archon worktrees.
 
 ## Validate Before Deploy
 
