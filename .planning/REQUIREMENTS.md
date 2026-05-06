@@ -29,12 +29,12 @@
 
 ### Workflow Pack
 
-- [ ] **FLOW-01**: A ClaudeClaw coding workflow exists for plan-to-PR work with test/typecheck/build validation.
-- [ ] **FLOW-02**: A ClaudeClaw bugfix workflow exists for diagnosis, focused fix, regression check, and PR/report output.
-- [ ] **FLOW-03**: A strategy/business ingestion workflow exists for turning meeting notes, docs, and direction changes into canonical planning updates.
-- [ ] **FLOW-04**: An ops triage workflow exists for VPS/service health checks, log review, and safe remediation recommendations.
-- [ ] **FLOW-05**: A comms/content workflow pattern exists for Poe and Cole that produces drafts/artifacts but does not send or publish without approval.
-- [ ] **FLOW-06**: A workflow-authoring path exists so agents can create, validate, and document new Archon workflows.
+- [x] **FLOW-01**: A ClaudeClaw coding workflow exists for plan-to-PR work with test/typecheck/build validation.
+- [x] **FLOW-02**: A ClaudeClaw bugfix workflow exists for diagnosis, focused fix, regression check, and PR/report output.
+- [x] **FLOW-03**: A strategy/business ingestion workflow exists for turning meeting notes, docs, and direction changes into canonical planning updates.
+- [x] **FLOW-04**: An ops triage workflow exists for VPS/service health checks, log review, and safe remediation recommendations.
+- [x] **FLOW-05**: A comms/content workflow pattern exists for Poe and Cole that produces drafts/artifacts but does not send or publish without approval.
+- [x] **FLOW-06**: A workflow-authoring path exists so agents can create, validate, and document new Archon workflows.
 
 ### Observability
 
@@ -81,12 +81,12 @@
 | ROUT-03 | Phase 3 | Complete |
 | ROUT-04 | Phase 3 | Complete |
 | ROUT-05 | Phase 3 | Complete |
-| FLOW-01 | Phase 4 | Pending |
-| FLOW-02 | Phase 4 | Pending |
-| FLOW-03 | Phase 4 | Pending |
-| FLOW-04 | Phase 4 | Pending |
-| FLOW-05 | Phase 4 | Pending |
-| FLOW-06 | Phase 4 | Pending |
+| FLOW-01 | Phase 4 | Complete |
+| FLOW-02 | Phase 4 | Complete |
+| FLOW-03 | Phase 4 | Complete |
+| FLOW-04 | Phase 4 | Complete |
+| FLOW-05 | Phase 4 | Complete |
+| FLOW-06 | Phase 4 | Complete |
 | OBS-01 | Phase 5 | Pending |
 | OBS-02 | Phase 5 | Pending |
 | OBS-03 | Phase 5 | Pending |
@@ -98,4 +98,4 @@
 
 ---
 *Requirements defined: 2026-05-05*
-*Last updated: 2026-05-06 after completing Phase 3 routing policy*
+*Last updated: 2026-05-06 after completing Phase 4 workflow pack*

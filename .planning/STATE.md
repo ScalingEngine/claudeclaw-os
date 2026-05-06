@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
 status: verifying
-last_updated: "2026-05-06T01:30:24.046Z"
+last_updated: "2026-05-06T02:45:10.416Z"
 last_activity: 2026-05-06
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Phase 03 complete — agent-workflow-routing-policy
+**Current focus:** Phase 04 complete — claudeclaw-workflow-pack
 
 ## Current Position
 
-Phase: 03 (agent-workflow-routing-policy) — COMPLETE
+Phase: 04 (claudeclaw-workflow-pack) — COMPLETE
 Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-05-06
 
 ## Next Action
 
-Verify Phase 3 routing policy, then continue to Phase 4 workflow pack planning.
+Run Phase 4 verification and VPS workflow install/list checks, then continue to Phase 5 workflow observability planning.
 
 ## Decisions
 
@@ -40,6 +40,9 @@ Verify Phase 3 routing policy, then continue to Phase 4 workflow pack planning.
 - Direct answer remains the first routing lane; skills/react loops handle quick bounded actions; Archon is reserved for durable gated workflows.
 - Ambiguous external effects require Noah approval before sending, posting, deploying, closing issues, or mutating production data.
 - Archon coding workflows must follow docs/archon-workspaces.md and must not run against /home/devuser/claudeclaw.
+- [Phase 04]: ClaudeClaw workflow sources live in archon/workflows/ and install into ~/.archon/workflows on the VPS.
+- [Phase 04]: Local workflow pack validation is deterministic and grep-based; VPS Archon schema/list validation remains an operator install step.
+- [Phase 04]: Coding and bugfix workflows require /home/devuser/claudeclaw-worktrees/<run-id> plus scripts/archon-workspace-guard.sh before implementation.
 
 ## Performance Metrics
 
@@ -47,6 +50,7 @@ Verify Phase 3 routing policy, then continue to Phase 4 workflow pack planning.
 |---|---:|---:|---:|---:|
 | 02 | 02 | 216s | 4 | 3 |
 | 03 | 03 | 261s | 3 | 6 |
+| 04 | 04 | 325s | 3 | 10 |
 
 ## Recent Commits (since milestone bootstrap)
 
