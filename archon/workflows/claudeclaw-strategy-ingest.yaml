@@ -6,6 +6,7 @@ summary: Turn meeting notes, docs, and direction changes into canonical planning
 
 policy:
   routing: docs/agent-workflow-routing.md
+  observability: docs/archon-observability.md
   planning_surfaces:
     - .planning/PROJECT.md
     - .planning/ROADMAP.md
@@ -40,5 +41,7 @@ nodes:
   - id: report
     depends_on: [review-gate]
     prompt: |
+      Read docs/archon-observability.md.
       Summarize accepted updates, deferred questions, requirements affected, and follow-up workflow recommendations.
+      Include workflow name and run ID or branch.
       Include any reviewer guidance captured at the approval gate: $review-gate.output

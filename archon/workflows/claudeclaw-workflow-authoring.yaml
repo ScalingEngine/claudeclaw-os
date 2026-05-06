@@ -6,6 +6,7 @@ summary: Help agents create, validate, and document new Archon workflows.
 
 policy:
   routing: docs/agent-workflow-routing.md
+  observability: docs/archon-observability.md
   source_directory: archon/workflows/
   documentation: docs/claudeclaw-workflow-pack.md
   validator: scripts/check-archon-workflow-pack.sh
@@ -44,4 +45,7 @@ nodes:
   - id: report
     depends_on: [validate]
     prompt: |
+      Read docs/archon-observability.md.
       Report files changed, validation commands, discovery proof, and any schema or runtime risks.
+      Include workflow name and run ID or branch.
+      If any node failed, include failing node and recovery action.

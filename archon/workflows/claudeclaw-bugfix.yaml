@@ -7,6 +7,7 @@ summary: Run diagnosis, focused fix, regression check, and PR/report output for 
 policy:
   routing: docs/agent-workflow-routing.md
   workspace: docs/archon-workspaces.md
+  observability: docs/archon-observability.md
   run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
   guard: scripts/archon-workspace-guard.sh
   production_checkout: /home/devuser/claudeclaw is read-only discovery context.
@@ -45,5 +46,8 @@ nodes:
   - id: report
     depends_on: [regression-check]
     prompt: |
+      Read docs/archon-observability.md.
       Summarize symptom, diagnosis, fix, regression check, changed files, and any residual risk.
+      Include workflow name and run ID or branch.
+      If any node failed, include failing node and recovery action.
       Stop before production deploy unless Noah approval is explicit for that exact deploy scope.

@@ -6,6 +6,7 @@ summary: Run VPS/service health checks, log review, and safe remediation recomme
 
 policy:
   routing: docs/agent-workflow-routing.md
+  observability: docs/archon-observability.md
   runbook: docs/incident-runbook.md
   approval: Noah approval is required before restarts, deploys, credential changes, or production data mutation.
 
@@ -36,4 +37,7 @@ nodes:
   - id: report
     depends_on: [remediation]
     prompt: |
+      Read docs/archon-observability.md.
       Include symptom, evidence, commands run, likely cause, recommended next step, and approval needed.
+      Include workflow name and run ID or branch.
+      If any node failed, include failing node and recovery action.

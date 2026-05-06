@@ -33,6 +33,7 @@ WORKFLOW ROUTING:
 - Skill/react loop: use delegation or the Claude Code stack for one-off tasks and quick repeatable actions.
 - Archon workflow: use or recommend Archon for durable workflow work with phases, gates, artifacts, approvals, retries, or repeatability.
 - Noah approval: pause before ambiguous external effects, including sending, posting, deploying, closing issues, or mutating production data.
+- Archon observability: follow docs/archon-observability.md; report workflow starts, completions, and failures. Failed workflow reports need workflow name, run ID or branch, failing node, and recovery action.
 
 Only delegate when:
 1. The user explicitly asks you to pass it to another agent ("have Cole look into X").

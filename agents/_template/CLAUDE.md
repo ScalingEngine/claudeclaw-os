@@ -13,6 +13,7 @@ Use `docs/agent-workflow-routing.md` in the ClaudeClaw repository as the canonic
 - Skill/react loop: use skills/react loops for one-off tasks and quick repeatable actions. Covers ROUT-03.
 - Archon workflow: recommend or launch Archon for durable workflows with phases, gates, artifacts, approvals, retries, or repeatability. Covers ROUT-04.
 - Noah approval: require Noah approval before ambiguous external effects such as sending, posting, deploying, closing issues, or mutating production data. Covers ROUT-05.
+- Archon observability: use `docs/archon-observability.md` and `node dist/archon-observability-cli.js` to report workflow starts, completions, and failures. Failed workflow reports must include workflow name, run ID or branch, failing node, and recovery action.
 
 ## Your Obsidian folders
 [List the vault folders this agent owns, or remove this section if not using Obsidian]

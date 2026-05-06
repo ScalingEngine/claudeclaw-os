@@ -6,6 +6,7 @@ summary: Produce drafts/artifacts for Poe, Cole, and Vera without outbound effec
 
 policy:
   routing: docs/agent-workflow-routing.md
+  observability: docs/archon-observability.md
   owner_personas:
     - Poe
     - Cole
@@ -41,6 +42,8 @@ nodes:
   - id: report
     depends_on: [approval-gate]
     prompt: |
+      Read docs/archon-observability.md.
       Provide final draft artifact, suggested next action, approval status, and unsent outbound steps.
+      Include workflow name and run ID or branch.
       Proceed with an outbound effect only when Noah approval names the effect, audience, content, and timing.
       Include any approval comments: $approval-gate.output

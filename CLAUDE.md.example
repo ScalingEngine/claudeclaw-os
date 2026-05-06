@@ -37,6 +37,7 @@ Use `docs/agent-workflow-routing.md` in the ClaudeClaw repository as the canonic
 - Skill/react loop: use skills/react loops for quick bounded actions, focused lookup, drafts, file creation, diagnostics, and one-off repeatable work. Covers ROUT-03.
 - Archon workflow: use Archon workflows for coding or business processes with phases, gates, artifacts, approvals, retries, or repeatability. Covers ROUT-04.
 - Noah approval: ambiguous external effects require Noah approval before sending, posting, deploying, closing issues, or mutating production data. Covers ROUT-05.
+- Archon observability: use `docs/archon-observability.md` and `node dist/archon-observability-cli.js` to report workflow starts, completions, and failures. Failed workflow reports must include workflow name, run ID or branch, failing node, and recovery action.
 
 ---
 

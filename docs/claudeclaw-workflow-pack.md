@@ -6,6 +6,8 @@ This pack defines committed ClaudeClaw Archon workflow sources for durable codin
 
 The pack preserves the Phase 1 runtime wrapper, the Phase 2 safe workspace boundary, and the Phase 3 routing policy in `docs/agent-workflow-routing.md`.
 
+Workflow report nodes follow `docs/archon-observability.md`: they must report workflow starts, completions, and failures, and failed workflow output must include workflow name, run ID or branch, failing node, and recovery action.
+
 ## Workflows
 
 | Workflow | Requirement | Primary owner | Purpose |
@@ -67,6 +69,7 @@ The workflow list should include:
 - Coding and bugfix workflows follow `docs/archon-workspaces.md`.
 - Coding and bugfix work runs in `/home/devuser/claudeclaw-worktrees/<run-id>`, not `/home/devuser/claudeclaw`.
 - Coding and bugfix workflows run `scripts/archon-workspace-guard.sh` before implementation.
+- Workflow starts, completions, and failures follow `docs/archon-observability.md`.
 - Deploys remain commit-based after validation.
 - Noah approval is required before sending, posting, publishing, scheduling, deploying, restarting services, closing issues, changing credentials, or mutating production data when scope is ambiguous.
 - Comms/content drafting produces drafts/artifacts and does not send or publish without approval.

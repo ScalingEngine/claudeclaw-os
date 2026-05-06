@@ -7,6 +7,7 @@ summary: Plan, implement, validate, and produce PR/report output for ClaudeClaw 
 policy:
   routing: docs/agent-workflow-routing.md
   workspace: docs/archon-workspaces.md
+  observability: docs/archon-observability.md
   run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
   guard: scripts/archon-workspace-guard.sh
   production_checkout: /home/devuser/claudeclaw is discovery-only, not an implementation cwd.
@@ -52,5 +53,8 @@ nodes:
   - id: report
     depends_on: [validate]
     prompt: |
+      Read docs/archon-observability.md.
       Summarize commits, changed files, validation results, deploy implications, and rollback notes.
+      Include workflow name and run ID or branch.
+      If any node failed, include failing node and recovery action.
       Stop before production deploy unless Noah approval is explicit for that exact deploy scope.

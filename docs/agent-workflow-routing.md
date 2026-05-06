@@ -26,6 +26,8 @@ Use this lane for one-off tasks and quick repeatable actions that a single agent
 
 Use this lane for coding and business processes that need phases, gates, artifacts, approvals, retries, repeatability, or post-run reporting. Archon workflows are for durable process work, not for ordinary conversation or quick one-off execution.
 
+Use `docs/archon-observability.md` when an Archon workflow is launched or recommended. Agents must report workflow starts, completions, and failures, and failed workflow reports must include workflow name, run ID or branch, failing node, and recovery action.
+
 ## Persona Matrix
 
 | Persona | Routing guidance |
@@ -61,5 +63,6 @@ Run these commands after routing policy, template, or War Room persona edits:
 
 ```bash
 npm run check:agent-workflow-routing
+npm run check:archon-observability
 npm run typecheck
 ```
