@@ -8,14 +8,11 @@ policy:
   routing: docs/agent-workflow-routing.md
   workspace: docs/archon-workspaces.md
   observability: docs/archon-observability.md
-  run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+  run_cwd: current Archon-managed isolated worktree
   guard: scripts/archon-workspace-guard.sh
   production_checkout: /home/devuser/claudeclaw is read-only discovery context.
 
 inputs:
-  - name: run-id
-    required: true
-    description: Unique worktree run identifier under /home/devuser/claudeclaw-worktrees/<run-id>.
   - name: symptom
     required: true
     description: Bug report, failing command, incident note, or reproduction.
@@ -23,7 +20,7 @@ inputs:
 nodes:
   - id: workspace-guard
     bash: |
-      scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
+      scripts/archon-workspace-guard.sh "$(pwd -P)"
   - id: diagnosis
     depends_on: [workspace-guard]
     prompt: |
@@ -33,14 +30,14 @@ nodes:
   - id: focused-fix
     depends_on: [diagnosis]
     prompt: |
-      Work inside /home/devuser/claudeclaw-worktrees/<run-id>.
+      Work inside the current Archon-managed isolated worktree.
 
       Make the smallest change that addresses the diagnosed cause.
       Add or update a regression test when practical.
   - id: regression-check
     depends_on: [focused-fix]
     bash: |
-      cd /home/devuser/claudeclaw-worktrees/<run-id>
+      scripts/archon-workspace-guard.sh "$(pwd -P)"
       npm run typecheck
       npm test
   - id: report

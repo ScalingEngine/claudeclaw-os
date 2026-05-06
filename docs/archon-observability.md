@@ -8,7 +8,7 @@ OBS-01 is satisfied when Archon workflow launches and completions are visible th
 
 OBS-02 is satisfied when every failed Archon workflow report includes workflow name, run ID or branch, failing node, and recovery action.
 
-OBS-03 is satisfied when Archie and Hopper can inspect active Archon worktrees/runs and clean up stale isolated work safely under `/home/devuser/claudeclaw-worktrees`.
+OBS-03 is satisfied when Archie and Hopper can inspect active Archon worktrees/runs and clean up stale isolated work safely under Archon-managed `~/.archon/workspaces/.../worktrees/...` paths or the legacy/manual `/home/devuser/claudeclaw-worktrees` root.
 
 Agents should call the observability CLI from the ClaudeClaw repository after the TypeScript build is available. The helper writes durable hive_mind rows and emits live chat/dashboard events.
 
@@ -67,7 +67,7 @@ scripts/archon-runs.sh cleanup --older-than-hours 24 --force
 
 Cleanup is dry-run by default. Dry-run output contains `DRY-RUN: would remove stale Archon worktree`. Forced cleanup of a stale clean worktree prints `REMOVED: stale Archon worktree`. Forced cleanup of a dirty worktree refuses removal and prints `dirty worktree; not removing`.
 
-The production checkout is `/home/devuser/claudeclaw`. Cleanup must refuse that path and operate only under `/home/devuser/claudeclaw-worktrees`.
+The production checkout is `/home/devuser/claudeclaw`. Cleanup must refuse that path and operate only under Archon-managed `~/.archon/workspaces/.../worktrees/...` paths or the legacy/manual `/home/devuser/claudeclaw-worktrees` root.
 
 ## Validation
 

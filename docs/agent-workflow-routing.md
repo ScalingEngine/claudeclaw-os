@@ -51,7 +51,7 @@ This gate applies whether the agent is answering directly, using a skill/react l
 
 Archon coding workflows must follow `docs/archon-workspaces.md`.
 
-Workflow discovery may inspect `/home/devuser/claudeclaw`, but coding runs must use `/home/devuser/claudeclaw-worktrees/<run-id>` and pass `scripts/archon-workspace-guard.sh` before the workflow starts.
+Workflow discovery may inspect `/home/devuser/claudeclaw`. Coding runs launch from that production checkout with `scripts/archon-vps.sh workflow run <workflow> --cwd /home/devuser/claudeclaw --branch <branch> "<request>"`; Archon creates an isolated managed worktree under `~/.archon/workspaces/.../worktrees/...`, and workflow nodes must pass `scripts/archon-workspace-guard.sh "$(pwd -P)"` before implementation.
 
 Coding workflows must not run against /home/devuser/claudeclaw.
 

@@ -2,17 +2,44 @@
 
 ## Scope
 
-This runbook defines the safe workspace boundary for Archon coding workflows that touch ClaudeClaw. Workflow discovery may inspect production, but coding work must happen in a disposable git worktree under the allowed root and must pass the workspace guard before Archon runs.
+This runbook defines the safe workspace boundary for Archon coding workflows that touch ClaudeClaw. Workflow discovery and launch may happen from production, but coding work must happen in an isolated git worktree and must pass the workspace guard before implementation.
 
 ## Allowed Paths
 
 - Production checkout: `/home/devuser/claudeclaw`
-- Allowed worktree root: `/home/devuser/claudeclaw-worktrees`
+- Archon-managed worktree root: `~/.archon/workspaces/.../worktrees/...`
+- Legacy/manual worktree root: `/home/devuser/claudeclaw-worktrees`
 - Archon source checkout: `/home/devuser/remote-coding-agent`
 
-Do not use `/home/devuser/claudeclaw` as the `--cwd` for coding workflows.
+Use `/home/devuser/claudeclaw` as the `--cwd` for Archon workflow launch and pass `--branch`; Archon creates and enters the isolated managed worktree for workflow nodes. Do not run implementation commands directly in `/home/devuser/claudeclaw`.
 
-## Create a Disposable Worktree
+## Launch an Archon-Managed Worktree
+
+```bash
+RUN_ID="$(date +%Y%m%d%H%M%S)-example"
+cd /home/devuser/claudeclaw
+scripts/archon-vps.sh workflow run claudeclaw-coding-plan-to-pr --cwd /home/devuser/claudeclaw --branch "archon/${RUN_ID}" "Implement the approved objective"
+```
+
+The branch is the reviewable deployment artifact. Archon stores the managed worktree under `~/.archon/workspaces/.../worktrees/...`; keep all generated code, tests, and docs inside that worktree until the branch or commit is validated.
+
+## Run the Workspace Guard
+
+Workflow nodes run the guard against the current managed worktree:
+
+```bash
+/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "$(pwd -P)"
+```
+
+For final validation before deploy, require a clean workspace:
+
+```bash
+ARCHON_REQUIRE_CLEAN=1 /home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "$(pwd -P)"
+```
+
+## Manual Worktree Fallback
+
+If Archon-managed isolation is unavailable, create a disposable manual worktree and use the same guard:
 
 ```bash
 RUN_ID="$(date +%Y%m%d%H%M%S)-example"
@@ -20,31 +47,7 @@ mkdir -p /home/devuser/claudeclaw-worktrees
 cd /home/devuser/claudeclaw
 git fetch origin
 git worktree add -b "archon/${RUN_ID}" "/home/devuser/claudeclaw-worktrees/${RUN_ID}" origin/main
-```
-
-The worktree branch is the reviewable deployment artifact. Keep all generated code, tests, and docs inside the worktree until the branch or commit is validated.
-
-## Run the Workspace Guard
-
-Run the guard before any Archon coding workflow:
-
-```bash
 /home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
-```
-
-For final validation before deploy, require a clean workspace:
-
-```bash
-ARCHON_REQUIRE_CLEAN=1 /home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
-```
-
-## Run Archon Against the Worktree
-
-Use the disposable worktree as `--cwd`, not the production checkout:
-
-```bash
-ARCHON_PROJECT_CWD="/home/devuser/claudeclaw-worktrees/${RUN_ID}"
-/home/devuser/claudeclaw/scripts/archon-vps.sh workflow run coding-plan-to-pr --cwd "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
 ```
 
 Workflow output should name the branch, commit, validation commands, and any approval needed before production deploy.
@@ -66,11 +69,10 @@ Use committed example files and templates only. For example, `.env.example` is a
 
 ## Validate Before Deploy
 
-Run validation in the disposable worktree before selecting a branch or commit for production:
+Run validation in the isolated worktree before selecting a branch or commit for production:
 
 ```bash
-cd "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
-/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
+/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "$(pwd -P)"
 npm run typecheck
 npm test
 ```
@@ -113,12 +115,19 @@ After rollback, verify affected agents with `systemctl --user status 'claudeclaw
 
 ## Cleanup
 
-Remove the disposable worktree after the branch or commit is merged, abandoned, or otherwise captured:
+Inspect stale isolated worktrees before removing them:
 
 ```bash
 cd /home/devuser/claudeclaw
-git worktree remove "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
-git branch -D "archon/${RUN_ID}"
+scripts/archon-runs.sh list
+scripts/archon-runs.sh stale --older-than-hours 24
+scripts/archon-runs.sh cleanup --older-than-hours 24
 ```
 
-If cleanup fails because files are dirty, inspect the diff in the disposable worktree. Commit or intentionally discard only the worktree-specific changes before retrying.
+Forced cleanup is available only after reviewing the dry-run output:
+
+```bash
+scripts/archon-runs.sh cleanup --older-than-hours 24 --force
+```
+
+If cleanup refuses because files are dirty, inspect the diff in the isolated worktree. Commit or intentionally discard only the worktree-specific changes before retrying.

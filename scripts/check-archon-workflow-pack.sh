@@ -159,8 +159,10 @@ check_file_contains "$AUTHORING_WORKFLOW" "nodes:"
 
 check_file_contains "$CODING_WORKFLOW" "scripts/archon-workspace-guard.sh"
 check_file_contains "$BUGFIX_WORKFLOW" "scripts/archon-workspace-guard.sh"
-check_file_contains "$CODING_WORKFLOW" "/home/devuser/claudeclaw-worktrees/<run-id>"
-check_file_contains "$BUGFIX_WORKFLOW" "/home/devuser/claudeclaw-worktrees/<run-id>"
+check_file_contains "$CODING_WORKFLOW" 'scripts/archon-workspace-guard.sh "$(pwd -P)"'
+check_file_contains "$BUGFIX_WORKFLOW" 'scripts/archon-workspace-guard.sh "$(pwd -P)"'
+check_file_contains "$CODING_WORKFLOW" "current Archon-managed isolated worktree"
+check_file_contains "$BUGFIX_WORKFLOW" "current Archon-managed isolated worktree"
 check_file_contains "$CODING_WORKFLOW" "npm run typecheck"
 check_file_contains "$BUGFIX_WORKFLOW" "npm run typecheck"
 check_file_contains "$CODING_WORKFLOW" "npm test"

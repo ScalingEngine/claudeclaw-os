@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROD_CLAUDECLAW_CWD="${PROD_CLAUDECLAW_CWD:-/home/devuser/claudeclaw}"
 ARCHON_WORKTREE_ROOT="${ARCHON_WORKTREE_ROOT:-/home/devuser/claudeclaw-worktrees}"
+ARCHON_MANAGED_WORKTREE_ROOT="${ARCHON_MANAGED_WORKTREE_ROOT:-$HOME/.archon/workspaces}"
 ARCHON_WORKSPACE_CWD="${1:-${ARCHON_WORKSPACE_CWD:-}}"
 ARCHON_REQUIRE_CLEAN="${ARCHON_REQUIRE_CLEAN:-0}"
 
@@ -115,10 +116,17 @@ else
 fi
 
 if RESOLVED_ROOT="$(resolve_path "$ARCHON_WORKTREE_ROOT" 2>/dev/null)"; then
-  report_ok "Worktree root path" "$RESOLVED_ROOT"
+  report_ok "Manual worktree root path" "$RESOLVED_ROOT"
 else
-  report_fail "Worktree root path" "cannot resolve: $ARCHON_WORKTREE_ROOT"
-  RESOLVED_ROOT="$ARCHON_WORKTREE_ROOT"
+  report_ok "Manual worktree root path" "not present: $ARCHON_WORKTREE_ROOT"
+  RESOLVED_ROOT=""
+fi
+
+if RESOLVED_MANAGED_ROOT="$(resolve_path "$ARCHON_MANAGED_WORKTREE_ROOT" 2>/dev/null)"; then
+  report_ok "Managed worktree root path" "$RESOLVED_MANAGED_ROOT"
+else
+  report_ok "Managed worktree root path" "not present: $ARCHON_MANAGED_WORKTREE_ROOT"
+  RESOLVED_MANAGED_ROOT=""
 fi
 
 if [ -n "$ARCHON_WORKSPACE_CWD" ] && RESOLVED_WORKSPACE="$(resolve_path "$ARCHON_WORKSPACE_CWD" 2>/dev/null)"; then
@@ -130,14 +138,13 @@ if [ -n "$ARCHON_WORKSPACE_CWD" ] && RESOLVED_WORKSPACE="$(resolve_path "$ARCHON
     report_ok "Production boundary" "workspace is not production checkout"
   fi
 
-  case "$RESOLVED_WORKSPACE/" in
-    "$RESOLVED_ROOT"/*)
-      report_ok "Worktree root" "workspace is under $RESOLVED_ROOT"
-      ;;
-    *)
-      report_fail "Worktree root" "workspace is not under $RESOLVED_ROOT/"
-      ;;
-  esac
+  if [ -n "$RESOLVED_ROOT" ] && [[ "$RESOLVED_WORKSPACE/" == "$RESOLVED_ROOT"/* ]]; then
+    report_ok "Worktree root" "workspace is under manual root $RESOLVED_ROOT"
+  elif [ -n "$RESOLVED_MANAGED_ROOT" ] && [[ "$RESOLVED_WORKSPACE/" == "$RESOLVED_MANAGED_ROOT"/* ]]; then
+    report_ok "Worktree root" "workspace is under managed root $RESOLVED_MANAGED_ROOT"
+  else
+    report_fail "Worktree root" "workspace is not under $RESOLVED_ROOT/ or $RESOLVED_MANAGED_ROOT/"
+  fi
 
   if [ "$(git -C "$RESOLVED_WORKSPACE" rev-parse --is-inside-work-tree 2>/dev/null || true)" = "true" ]; then
     report_ok "Git worktree" "workspace is inside a git worktree"

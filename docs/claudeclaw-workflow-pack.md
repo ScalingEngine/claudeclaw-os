@@ -67,7 +67,7 @@ The workflow list should include:
 ## Safety Rules
 
 - Coding and bugfix workflows follow `docs/archon-workspaces.md`.
-- Coding and bugfix work runs in `/home/devuser/claudeclaw-worktrees/<run-id>`, not `/home/devuser/claudeclaw`.
+- Coding and bugfix workflows launch from `/home/devuser/claudeclaw` with `--branch`; Archon then runs nodes in a managed isolated worktree under `~/.archon/workspaces/.../worktrees/...`, not directly in production.
 - Coding and bugfix workflows run `scripts/archon-workspace-guard.sh` before implementation.
 - Workflow starts, completions, and failures follow `docs/archon-observability.md`.
 - Deploys remain commit-based after validation.

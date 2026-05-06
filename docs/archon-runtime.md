@@ -10,10 +10,10 @@ Phase 1 verifies workflow discovery only; coding workflows must wait for the saf
 
 Workflow discovery may still target /home/devuser/claudeclaw.
 Coding workflows must not run against /home/devuser/claudeclaw.
-Use docs/archon-workspaces.md to create /home/devuser/claudeclaw-worktrees/<run-id> and run scripts/archon-workspace-guard.sh before any Archon coding workflow.
+Use docs/archon-workspaces.md to launch coding workflows with `--branch`; Archon creates the managed worktree under `~/.archon/workspaces/.../worktrees/...`. Workflow nodes run `scripts/archon-workspace-guard.sh "$(pwd -P)"` before any implementation.
 
 ```bash
-/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "/home/devuser/claudeclaw-worktrees/${RUN_ID}"
+/home/devuser/claudeclaw/scripts/archon-workspace-guard.sh "$(pwd -P)"
 ```
 
 ## Files and Paths

@@ -8,14 +8,11 @@ policy:
   routing: docs/agent-workflow-routing.md
   workspace: docs/archon-workspaces.md
   observability: docs/archon-observability.md
-  run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+  run_cwd: current Archon-managed isolated worktree
   guard: scripts/archon-workspace-guard.sh
   production_checkout: /home/devuser/claudeclaw is discovery-only, not an implementation cwd.
 
 inputs:
-  - name: run-id
-    required: true
-    description: Unique worktree run identifier under /home/devuser/claudeclaw-worktrees/<run-id>.
   - name: objective
     required: true
     description: Coding objective or plan reference.
@@ -26,7 +23,7 @@ inputs:
 nodes:
   - id: workspace-guard
     bash: |
-      scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
+      scripts/archon-workspace-guard.sh "$(pwd -P)"
   - id: plan-to-pr
     depends_on: [workspace-guard]
     prompt: |
@@ -35,18 +32,18 @@ nodes:
       Convert the objective into a concrete plan-to-PR path for ClaudeClaw.
       Scope changes to the requested objective.
       Preserve commit-based deploy boundaries.
-      Respect the isolated worktree at /home/devuser/claudeclaw-worktrees/<run-id>.
+      Respect the current Archon-managed isolated worktree.
   - id: implement
     depends_on: [plan-to-pr]
     prompt: |
-      Implement the approved coding objective inside /home/devuser/claudeclaw-worktrees/<run-id>.
+      Implement the approved coding objective inside the current Archon-managed isolated worktree.
 
       Make focused code, test, and documentation changes.
       Do not copy .env files, SQLite databases, OAuth tokens, or live agent configs.
   - id: validate
     depends_on: [implement]
     bash: |
-      cd /home/devuser/claudeclaw-worktrees/<run-id>
+      scripts/archon-workspace-guard.sh "$(pwd -P)"
       npm run typecheck
       npm test
       npm run build

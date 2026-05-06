@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROD_CLAUDECLAW_CWD="${PROD_CLAUDECLAW_CWD:-/home/devuser/claudeclaw}"
 ARCHON_WORKTREE_ROOT="${ARCHON_WORKTREE_ROOT:-/home/devuser/claudeclaw-worktrees}"
+ARCHON_MANAGED_WORKTREE_ROOT="${ARCHON_MANAGED_WORKTREE_ROOT:-$HOME/.archon/workspaces}"
 
 COMMAND="${1:-list}"
 OLDER_THAN_HOURS=24
@@ -69,13 +70,22 @@ parse_args() {
 }
 
 ensure_safe_roots() {
-  if [ ! -d "$ARCHON_WORKTREE_ROOT" ]; then
-    mkdir -p "$ARCHON_WORKTREE_ROOT"
+  if [ -d "$ARCHON_WORKTREE_ROOT" ]; then
+    if ! RESOLVED_ROOT="$(resolve_path "$ARCHON_WORKTREE_ROOT" 2>/dev/null)"; then
+      printf 'ERROR: cannot resolve Archon worktree root: %s\n' "$ARCHON_WORKTREE_ROOT" >&2
+      exit 1
+    fi
+  else
+    RESOLVED_ROOT=""
   fi
 
-  if ! RESOLVED_ROOT="$(resolve_path "$ARCHON_WORKTREE_ROOT" 2>/dev/null)"; then
-    printf 'ERROR: cannot resolve Archon worktree root: %s\n' "$ARCHON_WORKTREE_ROOT" >&2
-    exit 1
+  if [ -d "$ARCHON_MANAGED_WORKTREE_ROOT" ]; then
+    if ! RESOLVED_MANAGED_ROOT="$(resolve_path "$ARCHON_MANAGED_WORKTREE_ROOT" 2>/dev/null)"; then
+      printf 'ERROR: cannot resolve Archon managed worktree root: %s\n' "$ARCHON_MANAGED_WORKTREE_ROOT" >&2
+      exit 1
+    fi
+  else
+    RESOLVED_MANAGED_ROOT=""
   fi
 
   if RESOLVED_PROD="$(resolve_path "$PROD_CLAUDECLAW_CWD" 2>/dev/null)"; then
@@ -84,8 +94,13 @@ ensure_safe_roots() {
     RESOLVED_PROD="$PROD_CLAUDECLAW_CWD"
   fi
 
-  if [ "$RESOLVED_ROOT" = "$RESOLVED_PROD" ]; then
+  if [ -n "$RESOLVED_ROOT" ] && [ "$RESOLVED_ROOT" = "$RESOLVED_PROD" ]; then
     printf 'ERROR: refusing production checkout: %s\n' "$RESOLVED_ROOT" >&2
+    exit 1
+  fi
+
+  if [ -n "$RESOLVED_MANAGED_ROOT" ] && [ "$RESOLVED_MANAGED_ROOT" = "$RESOLVED_PROD" ]; then
+    printf 'ERROR: refusing production checkout: %s\n' "$RESOLVED_MANAGED_ROOT" >&2
     exit 1
   fi
 }
@@ -93,10 +108,15 @@ ensure_safe_roots() {
 path_is_under_root() {
   local path="$1"
 
-  case "$path/" in
-    "$RESOLVED_ROOT"/*) return 0 ;;
-    *) return 1 ;;
-  esac
+  if [ -n "$RESOLVED_ROOT" ] && [[ "$path/" == "$RESOLVED_ROOT"/* ]]; then
+    return 0
+  fi
+
+  if [ -n "$RESOLVED_MANAGED_ROOT" ] && [[ "$path/" == "$RESOLVED_MANAGED_ROOT"/* ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 is_dirty_worktree() {
@@ -136,7 +156,17 @@ print_run_line() {
 }
 
 for_each_candidate() {
-  find "$RESOLVED_ROOT" -mindepth 1 -maxdepth 1 -type d -print | sort
+  {
+    if [ -n "$RESOLVED_ROOT" ]; then
+      find "$RESOLVED_ROOT" -mindepth 1 -maxdepth 1 -type d -print
+    fi
+
+    if [ -n "$RESOLVED_MANAGED_ROOT" ]; then
+      find "$RESOLVED_MANAGED_ROOT" -path '*/worktrees/*/.git' \( -type f -o -type d \) -print | while IFS= read -r git_marker; do
+        dirname "$git_marker"
+      done
+    fi
+  } | sort -u
 }
 
 classify_status() {

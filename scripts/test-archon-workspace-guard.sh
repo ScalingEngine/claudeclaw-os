@@ -7,6 +7,7 @@ TMP_DIR="$(mktemp -d)"
 
 cleanup() {
   git -C "${TMP_DIR}/src" worktree remove --force "${TMP_DIR}/worktrees/run" >/dev/null 2>&1 || true
+  git -C "${TMP_DIR}/src" worktree remove --force "${TMP_DIR}/managed/devuser/claudeclaw/worktrees/archon/run" >/dev/null 2>&1 || true
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -34,10 +35,12 @@ assert_fail() {
 
 prod="${TMP_DIR}/prod"
 worktree_root="${TMP_DIR}/worktrees"
+managed_root="${TMP_DIR}/managed"
 workspace="${worktree_root}/run"
+managed_workspace="${managed_root}/devuser/claudeclaw/worktrees/archon/run"
 src="${TMP_DIR}/src"
 
-mkdir -p "$prod" "$worktree_root"
+mkdir -p "$prod" "$worktree_root" "$(dirname "$managed_workspace")"
 git -C "$TMP_DIR" init -q src
 git -C "$src" config user.email test@example.com
 git -C "$src" config user.name Test
@@ -45,11 +48,16 @@ printf 'fixture\n' > "${src}/file.txt"
 git -C "$src" add file.txt
 git -C "$src" commit -qm init
 git -C "$src" worktree add -q "$workspace" HEAD
+git -C "$src" worktree add -q "$managed_workspace" HEAD
 touch "${workspace}/.env.example"
 
 assert_pass \
   "accepts clean worktree under allowed root with env example" \
   env PROD_CLAUDECLAW_CWD="$prod" ARCHON_WORKTREE_ROOT="$worktree_root" "$GUARD" "$workspace"
+
+assert_pass \
+  "accepts clean worktree under managed Archon root" \
+  env PROD_CLAUDECLAW_CWD="$prod" ARCHON_WORKTREE_ROOT="$worktree_root" ARCHON_MANAGED_WORKTREE_ROOT="$managed_root" "$GUARD" "$managed_workspace"
 
 assert_fail \
   "rejects production checkout" \

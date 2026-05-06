@@ -44,7 +44,7 @@ assert_path_missing() {
 }
 
 run_archon_runs() {
-  env PROD_CLAUDECLAW_CWD="$PROD" ARCHON_WORKTREE_ROOT="$WORKTREE_ROOT" "$RUNS" "$@"
+  env PROD_CLAUDECLAW_CWD="$PROD" ARCHON_WORKTREE_ROOT="$WORKTREE_ROOT" ARCHON_MANAGED_WORKTREE_ROOT="$MANAGED_ROOT" "$RUNS" "$@"
 }
 
 make_stale() {
@@ -59,7 +59,8 @@ make_stale() {
 
 PROD="${TMP_DIR}/prod"
 WORKTREE_ROOT="${TMP_DIR}/worktrees"
-mkdir -p "$PROD" "$WORKTREE_ROOT"
+MANAGED_ROOT="${TMP_DIR}/managed"
+mkdir -p "$PROD" "$WORKTREE_ROOT" "$MANAGED_ROOT/devuser/claudeclaw/worktrees/archon"
 
 git -C "$TMP_DIR" init -q src
 SRC="${TMP_DIR}/src"
@@ -72,13 +73,16 @@ git -C "$SRC" commit -qm init
 OLD_RUN="${WORKTREE_ROOT}/old-run"
 DIRTY_RUN="${WORKTREE_ROOT}/dirty-run"
 NEW_RUN="${WORKTREE_ROOT}/new-run"
+MANAGED_RUN="${MANAGED_ROOT}/devuser/claudeclaw/worktrees/archon/managed-old"
 
 git -C "$SRC" worktree add -q "$OLD_RUN" HEAD
 git -C "$SRC" worktree add -q "$DIRTY_RUN" HEAD
 git -C "$SRC" worktree add -q "$NEW_RUN" HEAD
+git -C "$SRC" worktree add -q "$MANAGED_RUN" HEAD
 
 make_stale "$OLD_RUN"
 make_stale "$DIRTY_RUN"
+make_stale "$MANAGED_RUN"
 printf 'dirty\n' >> "${DIRTY_RUN}/file.txt"
 
 list_output="$(run_archon_runs list)"
@@ -87,9 +91,11 @@ assert_contains "list includes PATH" "$list_output" "PATH="
 assert_contains "list includes BRANCH" "$list_output" "BRANCH="
 assert_contains "list includes AGE_HOURS" "$list_output" "AGE_HOURS="
 assert_contains "list includes STATUS" "$list_output" "STATUS="
+assert_contains "list includes managed Archon worktree" "$list_output" "RUN_ID=managed-old"
 
 stale_output="$(run_archon_runs stale --older-than-hours 24)"
 assert_contains "stale includes old run" "$stale_output" "RUN_ID=old-run"
+assert_contains "stale includes managed run" "$stale_output" "RUN_ID=managed-old"
 assert_contains "stale includes stale status" "$stale_output" "STATUS=stale"
 
 dry_run_output="$(run_archon_runs cleanup --older-than-hours 24)"
@@ -103,7 +109,7 @@ assert_contains "force cleanup refuses dirty run" "$force_output" "dirty worktre
 assert_path_exists "dirty worktree remains present" "$DIRTY_RUN"
 
 set +e
-bad_output="$(env PROD_CLAUDECLAW_CWD="$PROD" ARCHON_WORKTREE_ROOT="$PROD" "$RUNS" list 2>&1)"
+bad_output="$(env PROD_CLAUDECLAW_CWD="$PROD" ARCHON_WORKTREE_ROOT="$PROD" ARCHON_MANAGED_WORKTREE_ROOT="$MANAGED_ROOT" "$RUNS" list 2>&1)"
 bad_status=$?
 set -e
 [ "$bad_status" -ne 0 ] || fail "production checkout equality should fail"
