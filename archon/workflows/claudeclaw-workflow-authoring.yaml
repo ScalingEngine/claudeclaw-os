@@ -1,5 +1,6 @@
 name: claudeclaw-workflow-authoring
 title: ClaudeClaw workflow authoring workflow
+description: Create, validate, document, and prove discovery for new ClaudeClaw Archon workflows.
 requirement: FLOW-06
 summary: Help agents create, validate, and document new Archon workflows.
 

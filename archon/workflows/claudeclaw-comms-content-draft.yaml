@@ -1,5 +1,6 @@
 name: claudeclaw-comms-content-draft
 title: ClaudeClaw comms and content drafting workflow
+description: Draft comms and content artifacts without sending or publishing until approval is explicit.
 requirement: FLOW-05
 summary: Produce drafts/artifacts for Poe, Cole, and Vera without outbound effects unless approved.
 

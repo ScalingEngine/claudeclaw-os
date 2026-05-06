@@ -1,5 +1,6 @@
 name: claudeclaw-coding-plan-to-pr
 title: ClaudeClaw coding plan-to-PR workflow
+description: Turn a ClaudeClaw coding objective into scoped implementation, validation, and PR/report output.
 requirement: FLOW-01
 summary: Plan, implement, validate, and produce PR/report output for ClaudeClaw code work.
 

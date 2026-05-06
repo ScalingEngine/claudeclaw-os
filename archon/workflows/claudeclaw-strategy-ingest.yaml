@@ -1,5 +1,6 @@
 name: claudeclaw-strategy-ingest
 title: ClaudeClaw strategy and business ingestion workflow
+description: Convert strategic inputs into reviewable updates for ClaudeClaw planning surfaces.
 requirement: FLOW-03
 summary: Turn meeting notes, docs, and direction changes into canonical planning updates.
 

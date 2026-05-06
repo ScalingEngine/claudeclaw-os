@@ -1,5 +1,6 @@
 name: claudeclaw-ops-triage
 title: ClaudeClaw ops triage workflow
+description: Investigate ClaudeClaw operational symptoms, review evidence, and recommend safe remediation steps.
 requirement: FLOW-04
 summary: Run VPS/service health checks, log review, and safe remediation recommendations.
 

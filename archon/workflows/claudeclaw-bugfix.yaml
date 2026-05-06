@@ -1,5 +1,6 @@
 name: claudeclaw-bugfix
 title: ClaudeClaw bugfix workflow
+description: Diagnose, fix, validate, and report ClaudeClaw bugs from an isolated worktree.
 requirement: FLOW-02
 summary: Run diagnosis, focused fix, regression check, and PR/report output for ClaudeClaw bugs.
 
