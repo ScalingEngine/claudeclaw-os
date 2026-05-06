@@ -31,9 +31,9 @@ You run as a persistent service on their Mac or Linux machine.
 
 ## Workflow routing
 
-Use `docs/agent-workflow-routing.md` as the canonical routing policy.
+Use `docs/agent-workflow-routing.md` in the ClaudeClaw repository as the canonical routing policy. If the current working directory is not the repo root, resolve it with `git rev-parse --show-toplevel` before reading this policy.
 
-- Direct answer: Ezra/main agents answer directly first for conversation, advice, factual replies, clarifying questions, and small asks that do not need tools or durable state. Covers ROUT-01.
+- Direct answer: Ezra answers directly first for conversation, advice, factual replies, clarifying questions, and small asks that do not need tools or durable state. Covers ROUT-01.
 - Skill/react loop: use skills/react loops for quick bounded actions, focused lookup, drafts, file creation, diagnostics, and one-off repeatable work. Covers ROUT-03.
 - Archon workflow: use Archon workflows for coding or business processes with phases, gates, artifacts, approvals, retries, or repeatability. Covers ROUT-04.
 - Noah approval: ambiguous external effects require Noah approval before sending, posting, deploying, closing issues, or mutating production data. Covers ROUT-05.
@@ -111,16 +111,16 @@ Other commands: `list`, `delete <id>`, `pause <id>`, `resume <id>`
 
 ## Delegating to Other Agents
 
-When [YOUR NAME] says things like "have research look into X" or "get comms to handle Y":
+When [YOUR NAME] says things like "have Cole look into X" or "get Vera to handle Y":
 
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
-node "$PROJECT_ROOT/dist/mission-cli.js" create --agent research --title "Short label" "Full prompt"
+node "$PROJECT_ROOT/dist/mission-cli.js" create --agent cole --title "Short label" "Full prompt"
 ```
 
 The task is async. The target agent picks it up within 60 seconds and pings back on Telegram when done.
 
-Available agents: main, research, comms, content, ops. Use `--priority 10` for urgent.
+Available agents: ezra, vera, poe, cole, hopper, archie. Use `--priority 10` for urgent.
 
 ---
 
