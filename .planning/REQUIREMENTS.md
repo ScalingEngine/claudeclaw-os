@@ -38,9 +38,9 @@
 
 ### Observability
 
-- [ ] **OBS-01**: Archon workflow launches and completions are visible in ClaudeClaw conversation output or hive_mind-style activity records.
-- [ ] **OBS-02**: Failed Archon workflow runs report the workflow name, run ID or branch, failing node, and next recovery action.
-- [ ] **OBS-03**: Archie and Hopper can inspect active Archon worktrees/runs and clean up stale isolated work safely.
+- [x] **OBS-01**: Archon workflow launches and completions are visible in ClaudeClaw conversation output or hive_mind-style activity records.
+- [x] **OBS-02**: Failed Archon workflow runs report the workflow name, run ID or branch, failing node, and next recovery action.
+- [x] **OBS-03**: Archie and Hopper can inspect active Archon worktrees/runs and clean up stale isolated work safely.
 
 ## Future Requirements
 
@@ -87,9 +87,9 @@
 | FLOW-04 | Phase 4 | Complete |
 | FLOW-05 | Phase 4 | Complete |
 | FLOW-06 | Phase 4 | Complete |
-| OBS-01 | Phase 5 | Pending |
-| OBS-02 | Phase 5 | Pending |
-| OBS-03 | Phase 5 | Pending |
+| OBS-01 | Phase 5 | Complete |
+| OBS-02 | Phase 5 | Complete |
+| OBS-03 | Phase 5 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 22 total

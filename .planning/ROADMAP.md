@@ -33,7 +33,7 @@ Phases:
 
 ### Milestone 2: Archon Workflow Engine (v1.1)
 **Goal:** All ClaudeClaw agents can use Archon as the durable workflow engine for coding and business processes while keeping skills/react loops for quick one-off work.
-**Status:** Phase 4 complete; ready for Phase 5 planning
+**Status:** Phase 5 complete; ready for milestone verification
 
 VPS analysis from 2026-05-05:
 - Archon source checkout exists at `/home/devuser/remote-coding-agent`.
@@ -52,7 +52,7 @@ Phases:
   - Wave 1: Plan 01 — agent workflow routing policy and persona guidance (`03-PLAN.md`).
   - Cross-cutting constraints: preserve direct-answer-first behavior; use skills/react loops for quick one-off work; reserve Archon for durable gated workflows; require Noah approval for ambiguous sending, posting, deploying, closing issues, or mutating production data.
 - [x] Phase 4: ClaudeClaw workflow pack — add and validate starter workflows for coding plan-to-PR, bugfix, strategy/business ingestion, ops triage, comms/content drafting, and workflow authoring. Completed 2026-05-06. Requirements: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, FLOW-06.
-- [ ] Phase 5: Workflow observability and cleanup — surface workflow runs in agent responses or hive_mind-style activity, standardize failure reports, and give Archie/Hopper safe inspection and cleanup paths for active/stale runs. Requirements: OBS-01, OBS-02, OBS-03.
+- [x] Phase 5: Workflow observability and cleanup — surface workflow runs in agent responses or hive_mind-style activity, standardize failure reports, and give Archie/Hopper safe inspection and cleanup paths for active/stale runs. Completed 2026-05-06. Requirements: OBS-01, OBS-02, OBS-03.
   - Wave 1: Plan 01 — Archon workflow visibility, failure reporting, and stale-run cleanup (`05-PLAN.md`).
   - Cross-cutting constraints: workflow events must be visible through live chat/dashboard events or hive_mind activity; failures must include workflow name, run ID or branch, failing node, and recovery action; cleanup must default to dry-run and refuse `/home/devuser/claudeclaw`.
 

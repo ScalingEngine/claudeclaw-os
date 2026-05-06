@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
-status: executing
-last_updated: "2026-05-06T18:22:50.505Z"
-last_activity: 2026-05-06 -- Phase 5 planning complete
+status: verifying
+last_updated: "2026-05-06T18:58:47.856Z"
+last_activity: 2026-05-06
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** One front door (Ezra) for the whole knowledge-work surface, with five specialists, persistent memory, and unified dashboard.
-**Current focus:** Phase 05 planning — workflow observability and cleanup
+**Current focus:** Phase 05 complete — workflow observability and cleanup ready for verification
 
 ## Current Position
 
-Phase: 05 (workflow-observability-and-cleanup) — PLANNED
+Phase: 05 (workflow-observability-and-cleanup) — COMPLETE
 Plan: 1 of 1
-Status: Ready to execute
-Last activity: 2026-05-06 -- Phase 5 planning complete
+Status: Phase complete — ready for verification
+Last activity: 2026-05-06
 
 ## Next Action
 
-Execute Phase 05 workflow observability and cleanup.
+Run `$gsd-verify-work 05`, then complete Milestone v1.1 after VPS/manual checks from `05-USER-SETUP.md`.
 
 ## Decisions
 
@@ -47,6 +47,9 @@ Execute Phase 05 workflow observability and cleanup.
 - [Phase 04 GAP-01]: Workflow installs require clean staged and unstaged archon/workflows/claudeclaw-*.yaml sources before runtime copy or removal.
 - [Phase 04 GAP-01]: Installer synchronization removes stale installed claudeclaw-*.yaml files only inside the owned runtime namespace.
 - [Phase 04 GAP-01]: Local validation preserves the required modern Bash installer contract while adding Bash 3 compatibility fallbacks for macOS.
+- [Phase 05]: Archon workflow events use `recordArchonWorkflowEvent()` to write durable hive_mind rows and emit live chat/dashboard events.
+- [Phase 05]: Failed workflow reports require workflow name, run ID or branch, failing node, and recovery action.
+- [Phase 05]: Archie/Hopper stale-run cleanup uses `scripts/archon-runs.sh`, defaults to dry-run, refuses dirty worktrees, and refuses `/home/devuser/claudeclaw`.
 
 ## Performance Metrics
 
@@ -67,10 +70,11 @@ Execute Phase 05 workflow observability and cleanup.
 | `74c8e3c` | M1.5 | fix(chat-ui): reverse history to chronological |
 | `c213572` | M1.6 | feat(dashboard): show memory-ingestion-paused state in sidebar footer |
 | `4bda72b` | M1.4 | refactor(memory): drop Gemini fallback from ingestion path |
+| Phase 05 P01 | 8 min | 3 tasks | 19 files |
 
 ## Open Questions / Watchpoints
 
 - **Memory accumulation rate** — first verified memory landed 2026-05-04 (importance 0.75, AI agent pricing). Watch memories table for one week before deciding on bidirectional sync.
 - **Persona over-execution** — Vera shipped `notify.sh` for a "confirm" prompt. Whether the other 4 specialists have the same bias is unmeasured.
 - **VPS-only deploy** — local Mac fleet config exists at `~/.claudeclaw/agents/` but isn't actively running. If we ever spin up a local mirror, the obsidian `vault:` paths point at the macOS vault; VPS yaml were patched on 2026-05-04 but local is untouched.
-- **Workflow observability gap** — workflows now install and load correctly, but agents still need a standard way to surface run state, failures, and stale-run cleanup in user-visible responses.
+- **Phase 05 VPS verification** — after deploy, run `scripts/archon-runs.sh list`, `stale --older-than-hours 24`, and dry-run `cleanup --older-than-hours 24` before any forced cleanup.
