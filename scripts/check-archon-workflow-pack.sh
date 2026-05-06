@@ -7,18 +7,25 @@ TMP_DIR=""
 CODING_BACKUP=""
 STAGED_PROBE="archon/workflows/claudeclaw-staged-validator-probe.yaml"
 UNTRACKED_PROBE="archon/workflows/claudeclaw-untracked-validator-probe.yaml"
+CREATED_STAGED_PROBE=0
+CREATED_UNTRACKED_PROBE=0
 
 cleanup() {
   if [ -n "$CODING_BACKUP" ] && [ -f "$CODING_BACKUP" ]; then
     cp "$CODING_BACKUP" "$ROOT/$CODING_WORKFLOW" || true
   fi
 
-  if git -C "$ROOT" diff --cached --name-only -- "$STAGED_PROBE" | grep -q .; then
-    git -C "$ROOT" rm --cached -- "$STAGED_PROBE" >/dev/null 2>&1 || \
-      git -C "$ROOT" restore --staged -- "$STAGED_PROBE" >/dev/null 2>&1 || true
+  if [ "$CREATED_STAGED_PROBE" -eq 1 ]; then
+    if git -C "$ROOT" diff --cached --name-only -- "$STAGED_PROBE" | grep -q .; then
+      git -C "$ROOT" rm --cached -- "$STAGED_PROBE" >/dev/null 2>&1 || \
+        git -C "$ROOT" restore --staged -- "$STAGED_PROBE" >/dev/null 2>&1 || true
+    fi
+    rm -f "$ROOT/$STAGED_PROBE"
   fi
 
-  rm -f "$ROOT/$STAGED_PROBE" "$ROOT/$UNTRACKED_PROBE"
+  if [ "$CREATED_UNTRACKED_PROBE" -eq 1 ]; then
+    rm -f "$ROOT/$UNTRACKED_PROBE"
+  fi
 
   if [ -n "$TMP_DIR" ]; then
     rm -rf "$TMP_DIR"
@@ -179,6 +186,7 @@ cat >"$ROOT/$UNTRACKED_PROBE" <<'YAML'
 name: claudeclaw-untracked-validator-probe
 description: Validator probe that must never be installed.
 YAML
+CREATED_UNTRACKED_PROBE=1
 
 if run_installer_capture "$UNTRACKED_TARGET" "$UNTRACKED_OUTPUT"; then
   assert_file_missing "$UNTRACKED_TARGET/claudeclaw-untracked-validator-probe.yaml" "untracked workflow probe was not installed"
@@ -188,6 +196,7 @@ else
   FAILED=1
 fi
 rm -f "$ROOT/$UNTRACKED_PROBE"
+CREATED_UNTRACKED_PROBE=0
 
 DIRTY_TARGET="$TMP_DIR/dirty-installed"
 DIRTY_OUTPUT="$TMP_DIR/dirty.out"
@@ -219,6 +228,7 @@ cat >"$ROOT/$STAGED_PROBE" <<'YAML'
 name: claudeclaw-staged-validator-probe
 description: Validator probe that must fail staged-source installation.
 YAML
+CREATED_STAGED_PROBE=1
 git -C "$ROOT" add -- "$STAGED_PROBE"
 
 if run_installer_capture "$STAGED_TARGET" "$STAGED_OUTPUT"; then
@@ -230,6 +240,7 @@ fi
 assert_file_missing "$STAGED_TARGET/claudeclaw-staged-validator-probe.yaml" "staged workflow probe was not installed"
 git -C "$ROOT" rm --cached -- "$STAGED_PROBE" >/dev/null
 rm -f "$ROOT/$STAGED_PROBE"
+CREATED_STAGED_PROBE=0
 
 STALE_TARGET="$TMP_DIR/stale-installed"
 STALE_DRY_OUTPUT="$TMP_DIR/stale-dry-run.out"
