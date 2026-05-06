@@ -27,7 +27,9 @@ scripts/install-archon-workflows.sh --dry-run
 scripts/install-archon-workflows.sh
 ```
 
-The installer copies only committed `archon/workflows/claudeclaw-*.yaml` files into `~/.archon/workflows`. It does not read, print, or copy `.env`, `~/.archon/.env`, SQLite databases, OAuth tokens, or live agent configs.
+Run the installer from a clean committed workflow source tree: staged or unstaged changes under `archon/workflows/claudeclaw-*.yaml` cause the installer to abort before copying or removing runtime workflow files.
+
+The installer synchronizes the owned `claudeclaw-*.yaml` namespace in `~/.archon/workflows`: it installs committed `archon/workflows/claudeclaw-*.yaml` files and removes stale installed `claudeclaw-*.yaml` files that are no longer present in the committed source set. It does not read, print, install, or copy `.env`, `~/.archon/.env`, SQLite databases, OAuth tokens, or live agent configs.
 
 ## Verify
 
@@ -80,5 +82,7 @@ scripts/install-archon-workflows.sh --dry-run
 scripts/install-archon-workflows.sh
 /home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw
 ```
+
+Reinstalling a known-good commit also removes stale owned `claudeclaw-*.yaml` files from the runtime workflow directory when those files are not present in that commit's source set.
 
 For a single workflow rollback, replace only the affected `claudeclaw-*.yaml` source in git, commit it, deploy the commit, rerun the installer, and rerun workflow discovery. Do not edit `~/.archon/.env`, `.env`, SQLite databases, OAuth tokens, or live agent configs as part of workflow rollback.
