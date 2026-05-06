@@ -21,7 +21,7 @@ assert_contains() {
   local output="$2"
   local expected="$3"
 
-  if ! printf '%s' "$output" | grep -Fq -- "$expected"; then
+  if ! grep -Fq -- "$expected" <<< "$output"; then
     fail "$label missing $expected"
   fi
   printf 'OK - %s\n' "$label"
