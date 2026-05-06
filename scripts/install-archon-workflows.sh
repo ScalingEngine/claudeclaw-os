@@ -11,7 +11,6 @@ if ! type mapfile >/dev/null 2>&1; then
     local delimiter=$'\n'
     local array_name
     local item
-    local quoted
 
     if [ "${1:-}" = "-d" ]; then
       delimiter="$2"
@@ -23,13 +22,11 @@ if ! type mapfile >/dev/null 2>&1; then
 
     if [ "$delimiter" = "" ]; then
       while IFS= read -r -d '' item; do
-        printf -v quoted '%q' "$item"
-        eval "$array_name+=(\$quoted)"
+        eval "$array_name+=(\"\${item}\")"
       done
     else
       while IFS= read -r item; do
-        printf -v quoted '%q' "$item"
-        eval "$array_name+=(\$quoted)"
+        eval "$array_name+=(\"\${item}\")"
       done
     fi
   }
