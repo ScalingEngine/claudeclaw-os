@@ -21,23 +21,26 @@ inputs:
     required: false
     description: Intended recipient, channel, or audience segment.
 
-steps:
+interactive: true
+
+nodes:
   - id: intake
-    name: Clarify draft purpose
-    instructions:
-      - Determine whether Poe, Cole, or Vera is the best owner.
-      - Identify audience, channel, constraints, tone, and source context.
+    prompt: |
+      Determine whether Poe, Cole, or Vera is the best owner.
+      Identify audience, channel, constraints, tone, and source context.
   - id: draft
-    name: Produce drafts/artifacts
-    instructions:
-      - Create draft copy, outline, response, content plan, or review artifact.
-      - Include source assumptions and open questions.
+    depends_on: [intake]
+    prompt: |
+      Create draft copy, outline, response, content plan, or review artifact.
+      Include source assumptions and open questions.
   - id: approval-gate
-    name: Noah approval gate
-    instructions:
-      - Stop before send, post, publish, schedule, deploy, or external mutation.
-      - Proceed with an outbound effect only when Noah approval names the effect, audience, content, and timing.
+    depends_on: [draft]
+    approval:
+      message: Review the draft before any send, post, publish, schedule, deploy, or external mutation.
+      capture_response: true
   - id: report
-    name: Drafting report
-    instructions:
-      - Provide final draft artifact, suggested next action, approval status, and unsent outbound steps.
+    depends_on: [approval-gate]
+    prompt: |
+      Provide final draft artifact, suggested next action, approval status, and unsent outbound steps.
+      Proceed with an outbound effect only when Noah approval names the effect, audience, content, and timing.
+      Include any approval comments: $approval-gate.output

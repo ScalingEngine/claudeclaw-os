@@ -19,31 +19,31 @@ inputs:
     required: true
     description: Bug report, failing command, incident note, or reproduction.
 
-steps:
+nodes:
   - id: workspace-guard
-    name: Verify isolated bugfix workspace
-    run:
-      - scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
+    bash: |
+      scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
   - id: diagnosis
-    name: diagnosis
-    instructions:
-      - Reproduce or narrow the bug before editing.
-      - Inspect relevant logs, tests, and source from the isolated worktree.
-      - State the suspected cause and evidence.
+    depends_on: [workspace-guard]
+    prompt: |
+      Reproduce or narrow the bug before editing.
+      Inspect relevant logs, tests, and source from the isolated worktree.
+      State the suspected cause and evidence.
   - id: focused-fix
-    name: focused fix
-    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
-    instructions:
-      - Make the smallest change that addresses the diagnosed cause.
-      - Add or update a regression test when practical.
+    depends_on: [diagnosis]
+    prompt: |
+      Work inside /home/devuser/claudeclaw-worktrees/<run-id>.
+
+      Make the smallest change that addresses the diagnosed cause.
+      Add or update a regression test when practical.
   - id: regression-check
-    name: regression check
-    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
-    run:
-      - npm run typecheck
-      - npm test
+    depends_on: [focused-fix]
+    bash: |
+      cd /home/devuser/claudeclaw-worktrees/<run-id>
+      npm run typecheck
+      npm test
   - id: report
-    name: Produce PR/report output
-    instructions:
-      - Summarize symptom, diagnosis, fix, regression check, changed files, and any residual risk.
-      - Stop before production deploy unless Noah approval is explicit for that exact deploy scope.
+    depends_on: [regression-check]
+    prompt: |
+      Summarize symptom, diagnosis, fix, regression check, changed files, and any residual risk.
+      Stop before production deploy unless Noah approval is explicit for that exact deploy scope.

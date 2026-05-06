@@ -17,24 +17,23 @@ inputs:
     required: false
     description: Optional claudeclaw-* systemd service or subsystem.
 
-steps:
+nodes:
   - id: health-checks
-    name: VPS/service health checks
-    instructions:
-      - Inspect service status with systemctl --user.
-      - Check dashboard and runtime health surfaces when available.
-      - Keep checks read-only until remediation is approved.
+    prompt: |
+      Inspect service status with systemctl --user.
+      Check dashboard and runtime health surfaces when available.
+      Keep checks read-only until remediation is approved.
   - id: log-review
-    name: log review
-    instructions:
-      - Inspect recent logs with journalctl --user.
-      - Correlate symptoms to service, time window, and recent deploys or config changes.
+    depends_on: [health-checks]
+    prompt: |
+      Inspect recent logs with journalctl --user.
+      Correlate symptoms to service, time window, and recent deploys or config changes.
   - id: remediation
-    name: safe remediation recommendations
-    instructions:
-      - Produce ranked remediation options with blast radius and rollback.
-      - Stop before restart, deploy, credential edit, issue closure, or production data mutation unless Noah approval is explicit.
+    depends_on: [log-review]
+    prompt: |
+      Produce ranked remediation options with blast radius and rollback.
+      Stop before restart, deploy, credential edit, issue closure, or production data mutation unless Noah approval is explicit.
   - id: report
-    name: Triage report
-    instructions:
-      - Include symptom, evidence, commands run, likely cause, recommended next step, and approval needed.
+    depends_on: [remediation]
+    prompt: |
+      Include symptom, evidence, commands run, likely cause, recommended next step, and approval needed.

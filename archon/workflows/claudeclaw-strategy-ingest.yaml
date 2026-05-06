@@ -19,24 +19,26 @@ inputs:
     required: false
     description: Milestone, phase, requirements, or planning files expected to change.
 
-steps:
+interactive: true
+
+nodes:
   - id: classify
-    name: Classify source material
-    instructions:
-      - Identify decisions, requirements, milestone changes, out-of-scope items, and open questions.
-      - Preserve ClaudeClaw's one-front-door product direction from .planning/PROJECT.md.
+    prompt: |
+      Identify decisions, requirements, milestone changes, out-of-scope items, and open questions.
+      Preserve ClaudeClaw's one-front-door product direction from .planning/PROJECT.md.
   - id: propose-updates
-    name: Draft canonical planning updates
-    instructions:
-      - Propose edits for .planning/PROJECT.md, .planning/ROADMAP.md, .planning/REQUIREMENTS.md, or phase context files.
-      - Include traceability from source material to each proposed change.
-      - Keep canonical planning updates reviewable and minimal.
+    depends_on: [classify]
+    prompt: |
+      Propose edits for .planning/PROJECT.md, .planning/ROADMAP.md, .planning/REQUIREMENTS.md, or phase context files.
+      Include traceability from source material to each proposed change.
+      Keep canonical planning updates reviewable and minimal.
   - id: review-gate
-    name: review gate
-    instructions:
-      - Pause for review when source material is ambiguous, contradicts current planning state, or changes priority.
-      - Do not silently rewrite canonical planning files without an explicit review gate.
+    depends_on: [propose-updates]
+    approval:
+      message: Review the proposed canonical planning updates before any planning state is treated as accepted.
+      capture_response: true
   - id: report
-    name: Produce ingestion report
-    instructions:
-      - Summarize accepted updates, deferred questions, requirements affected, and follow-up workflow recommendations.
+    depends_on: [review-gate]
+    prompt: |
+      Summarize accepted updates, deferred questions, requirements affected, and follow-up workflow recommendations.
+      Include any reviewer guidance captured at the approval gate: $review-gate.output

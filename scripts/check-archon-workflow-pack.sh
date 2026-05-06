@@ -150,6 +150,12 @@ check_file_contains "$STRATEGY_WORKFLOW" "description:"
 check_file_contains "$OPS_WORKFLOW" "description:"
 check_file_contains "$COMMS_WORKFLOW" "description:"
 check_file_contains "$AUTHORING_WORKFLOW" "description:"
+check_file_contains "$CODING_WORKFLOW" "nodes:"
+check_file_contains "$BUGFIX_WORKFLOW" "nodes:"
+check_file_contains "$STRATEGY_WORKFLOW" "nodes:"
+check_file_contains "$OPS_WORKFLOW" "nodes:"
+check_file_contains "$COMMS_WORKFLOW" "nodes:"
+check_file_contains "$AUTHORING_WORKFLOW" "nodes:"
 
 check_file_contains "$CODING_WORKFLOW" "scripts/archon-workspace-guard.sh"
 check_file_contains "$BUGFIX_WORKFLOW" "scripts/archon-workspace-guard.sh"
@@ -163,6 +169,18 @@ check_file_contains "$CODING_WORKFLOW" "npm run build"
 check_file_contains "$OPS_WORKFLOW" "Noah approval"
 check_file_contains "$COMMS_WORKFLOW" "Noah approval"
 check_file_contains "$COMMS_WORKFLOW" "does not send or publish without approval"
+
+if grep -Fq "steps:" "$ROOT/$CODING_WORKFLOW" \
+  || grep -Fq "steps:" "$ROOT/$BUGFIX_WORKFLOW" \
+  || grep -Fq "steps:" "$ROOT/$STRATEGY_WORKFLOW" \
+  || grep -Fq "steps:" "$ROOT/$OPS_WORKFLOW" \
+  || grep -Fq "steps:" "$ROOT/$COMMS_WORKFLOW" \
+  || grep -Fq "steps:" "$ROOT/$AUTHORING_WORKFLOW"; then
+  printf 'FAIL: sequential steps: format detected in ClaudeClaw workflow pack\n' >&2
+  FAILED=1
+else
+  printf 'OK: ClaudeClaw workflow pack uses nodes: DAG format\n'
+fi
 
 check_file_contains "$WORKFLOW_DOCS" "scripts/install-archon-workflows.sh --dry-run"
 check_file_contains "$WORKFLOW_DOCS" "/home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw"
