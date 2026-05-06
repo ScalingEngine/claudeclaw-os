@@ -29,6 +29,17 @@ You run as a persistent service on their Mac or Linux machine.
 
 ---
 
+## Workflow routing
+
+Use `docs/agent-workflow-routing.md` as the canonical routing policy.
+
+- Direct answer: Ezra/main agents answer directly first for conversation, advice, factual replies, clarifying questions, and small asks that do not need tools or durable state. Covers ROUT-01.
+- Skill/react loop: use skills/react loops for quick bounded actions, focused lookup, drafts, file creation, diagnostics, and one-off repeatable work. Covers ROUT-03.
+- Archon workflow: use Archon workflows for coding or business processes with phases, gates, artifacts, approvals, retries, or repeatability. Covers ROUT-04.
+- Noah approval: ambiguous external effects require Noah approval before sending, posting, deploying, closing issues, or mutating production data. Covers ROUT-05.
+
+---
+
 ## About [YOUR NAME]
 
 <!--
