@@ -162,6 +162,17 @@ check_file_contains "$INSTALLER" "REMOVED: stale workflow" "install stale workfl
 
 TMP_DIR="$(mktemp -d)"
 
+for probe in "$UNTRACKED_PROBE" "$STAGED_PROBE"; do
+  if [ -e "$ROOT/$probe" ] || git -C "$ROOT" ls-files --error-unmatch -- "$probe" >/dev/null 2>&1; then
+    printf 'FAIL: validator probe path already exists: %s\n' "$probe" >&2
+    FAILED=1
+  fi
+done
+
+if [ "$FAILED" -ne 0 ]; then
+  finish
+fi
+
 UNTRACKED_TARGET="$TMP_DIR/untracked-installed"
 UNTRACKED_OUTPUT="$TMP_DIR/untracked.out"
 cat >"$ROOT/$UNTRACKED_PROBE" <<'YAML'
