@@ -31,7 +31,7 @@ resolve_path() {
 stat_mtime() {
   local path="$1"
 
-  stat -f '%m' "$path" 2>/dev/null || stat -c '%Y' "$path"
+  stat -c '%Y' "$path" 2>/dev/null || stat -f '%m' "$path"
 }
 
 parse_args() {
