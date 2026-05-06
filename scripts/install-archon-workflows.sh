@@ -8,6 +8,7 @@ DRY_RUN=0
 
 usage() {
   printf 'Usage: %s [--dry-run]\n' "$(basename "$0")"
+  printf 'Installs require a clean committed workflow source tree.\n'
 }
 
 while [ "$#" -gt 0 ]; do
@@ -33,14 +34,35 @@ if [ ! -d "$SOURCE_DIR" ]; then
   exit 1
 fi
 
-shopt -s nullglob
-WORKFLOW_FILES=("$SOURCE_DIR"/claudeclaw-*.yaml)
-shopt -u nullglob
-
-if [ "${#WORKFLOW_FILES[@]}" -eq 0 ]; then
-  printf 'ERROR: no claudeclaw-*.yaml files found in %s\n' "$SOURCE_DIR" >&2
+if git -C "$ROOT" diff --name-only -- 'archon/workflows/claudeclaw-*.yaml' | grep -q .; then
+  printf 'ERROR: refusing to install with unstaged ClaudeClaw workflow source changes\n' >&2
+  git -C "$ROOT" diff --name-only -- 'archon/workflows/claudeclaw-*.yaml' >&2
   exit 1
 fi
+
+if git -C "$ROOT" diff --cached --name-only -- 'archon/workflows/claudeclaw-*.yaml' | grep -q .; then
+  printf 'ERROR: refusing to install with staged ClaudeClaw workflow source changes\n' >&2
+  git -C "$ROOT" diff --cached --name-only -- 'archon/workflows/claudeclaw-*.yaml' >&2
+  exit 1
+fi
+
+mapfile -d '' WORKFLOW_FILES < <(
+  git -C "$ROOT" ls-files -z 'archon/workflows/claudeclaw-*.yaml'
+)
+
+if [ "${#WORKFLOW_FILES[@]}" -eq 0 ]; then
+  printf 'ERROR: no committed claudeclaw-*.yaml files found\n' >&2
+  exit 1
+fi
+
+for i in "${!WORKFLOW_FILES[@]}"; do
+  WORKFLOW_FILES[$i]="$ROOT/${WORKFLOW_FILES[$i]}"
+done
+
+declare -A DESIRED_WORKFLOWS=()
+for workflow_file in "${WORKFLOW_FILES[@]}"; do
+  DESIRED_WORKFLOWS["$(basename "$workflow_file")"]=1
+done
 
 if [ "$DRY_RUN" -eq 1 ]; then
   printf 'DRY-RUN: would install %s workflow file(s) to %s\n' "${#WORKFLOW_FILES[@]}" "$ARCHON_WORKFLOWS_DIR"
@@ -48,6 +70,20 @@ else
   mkdir -p "$ARCHON_WORKFLOWS_DIR"
   printf 'Installing %s workflow file(s) to %s\n' "${#WORKFLOW_FILES[@]}" "$ARCHON_WORKFLOWS_DIR"
 fi
+
+shopt -s nullglob
+for target_file in "$ARCHON_WORKFLOWS_DIR"/claudeclaw-*.yaml; do
+  target_name="$(basename "$target_file")"
+  if [ -z "${DESIRED_WORKFLOWS[$target_name]+x}" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      printf 'DRY-RUN: would remove stale workflow %s\n' "$target_file"
+    else
+      rm -f "$target_file"
+      printf 'REMOVED: stale workflow %s\n' "$target_file"
+    fi
+  fi
+done
+shopt -u nullglob
 
 for workflow_file in "${WORKFLOW_FILES[@]}"; do
   workflow_name="$(basename "$workflow_file")"
