@@ -1,0 +1,41 @@
+name: claudeclaw-strategy-ingest
+title: ClaudeClaw strategy and business ingestion workflow
+requirement: FLOW-03
+summary: Turn meeting notes, docs, and direction changes into canonical planning updates.
+
+policy:
+  routing: docs/agent-workflow-routing.md
+  planning_surfaces:
+    - .planning/PROJECT.md
+    - .planning/ROADMAP.md
+    - .planning/REQUIREMENTS.md
+
+inputs:
+  - name: source-material
+    required: true
+    description: Meeting notes, docs, decision memo, transcript, or direction change.
+  - name: scope
+    required: false
+    description: Milestone, phase, requirements, or planning files expected to change.
+
+steps:
+  - id: classify
+    name: Classify source material
+    instructions:
+      - Identify decisions, requirements, milestone changes, out-of-scope items, and open questions.
+      - Preserve ClaudeClaw's one-front-door product direction from .planning/PROJECT.md.
+  - id: propose-updates
+    name: Draft canonical planning updates
+    instructions:
+      - Propose edits for .planning/PROJECT.md, .planning/ROADMAP.md, .planning/REQUIREMENTS.md, or phase context files.
+      - Include traceability from source material to each proposed change.
+      - Keep canonical planning updates reviewable and minimal.
+  - id: review-gate
+    name: review gate
+    instructions:
+      - Pause for review when source material is ambiguous, contradicts current planning state, or changes priority.
+      - Do not silently rewrite canonical planning files without an explicit review gate.
+  - id: report
+    name: Produce ingestion report
+    instructions:
+      - Summarize accepted updates, deferred questions, requirements affected, and follow-up workflow recommendations.

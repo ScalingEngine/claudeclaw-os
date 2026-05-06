@@ -1,0 +1,53 @@
+name: claudeclaw-coding-plan-to-pr
+title: ClaudeClaw coding plan-to-PR workflow
+requirement: FLOW-01
+summary: Plan, implement, validate, and produce PR/report output for ClaudeClaw code work.
+
+policy:
+  routing: docs/agent-workflow-routing.md
+  workspace: docs/archon-workspaces.md
+  run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+  guard: scripts/archon-workspace-guard.sh
+  production_checkout: /home/devuser/claudeclaw is discovery-only, not an implementation cwd.
+
+inputs:
+  - name: run-id
+    required: true
+    description: Unique worktree run identifier under /home/devuser/claudeclaw-worktrees/<run-id>.
+  - name: objective
+    required: true
+    description: Coding objective or plan reference.
+  - name: base-ref
+    required: false
+    default: origin/main
+
+steps:
+  - id: workspace-guard
+    name: Verify isolated coding workspace
+    run:
+      - scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
+    output: Workspace is confirmed safe before implementation.
+  - id: plan-to-PR
+    name: Convert objective into a concrete plan-to-PR path
+    instructions:
+      - Read docs/agent-workflow-routing.md and docs/archon-workspaces.md.
+      - Scope changes to the requested objective.
+      - Preserve commit-based deploy boundaries.
+  - id: implement
+    name: Implement in the isolated worktree
+    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+    instructions:
+      - Make focused code, test, and documentation changes.
+      - Do not copy .env files, SQLite databases, OAuth tokens, or live agent configs.
+  - id: validate
+    name: Run required validation
+    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+    run:
+      - npm run typecheck
+      - npm test
+      - npm run build
+  - id: report
+    name: Produce PR/report output
+    instructions:
+      - Summarize commits, changed files, validation results, deploy implications, and rollback notes.
+      - Stop before production deploy unless Noah approval is explicit for that exact deploy scope.

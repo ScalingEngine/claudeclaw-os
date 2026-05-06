@@ -1,0 +1,47 @@
+name: claudeclaw-workflow-authoring
+title: ClaudeClaw workflow authoring workflow
+requirement: FLOW-06
+summary: Help agents create, validate, and document new Archon workflows.
+
+policy:
+  routing: docs/agent-workflow-routing.md
+  source_directory: archon/workflows/
+  documentation: docs/claudeclaw-workflow-pack.md
+  validator: scripts/check-archon-workflow-pack.sh
+  discovery: /home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw
+
+inputs:
+  - name: workflow-name
+    required: true
+    description: New claudeclaw-* workflow name.
+  - name: owner-persona
+    required: true
+    description: Ezra, Vera, Poe, Cole, Hopper, or Archie owner for the workflow.
+  - name: process-goal
+    required: true
+    description: Durable process the workflow should make repeatable.
+
+steps:
+  - id: design
+    name: Design new workflow
+    instructions:
+      - Confirm owner persona, routing lane, inputs, approval gates, and artifact outputs.
+      - Follow docs/agent-workflow-routing.md for direct-answer, skill/react-loop, and Archon boundaries.
+  - id: create-source
+    name: Create workflow source
+    instructions:
+      - Add a source file under archon/workflows/.
+      - Include requirement or tracking ID, safety policy, inputs, steps, validation, and output contract.
+  - id: document
+    name: Update operator documentation
+    instructions:
+      - Update docs/claudeclaw-workflow-pack.md with the workflow, owner, install notes, verification, and rollback notes.
+  - id: validate
+    name: Validate and prove discovery
+    run:
+      - scripts/check-archon-workflow-pack.sh
+      - /home/devuser/claudeclaw/scripts/archon-vps.sh workflow list --cwd /home/devuser/claudeclaw
+  - id: report
+    name: Workflow authoring report
+    instructions:
+      - Report files changed, validation commands, discovery proof, and any schema or runtime risks.

@@ -1,0 +1,39 @@
+name: claudeclaw-ops-triage
+title: ClaudeClaw ops triage workflow
+requirement: FLOW-04
+summary: Run VPS/service health checks, log review, and safe remediation recommendations.
+
+policy:
+  routing: docs/agent-workflow-routing.md
+  runbook: docs/incident-runbook.md
+  approval: Noah approval is required before restarts, deploys, credential changes, or production data mutation.
+
+inputs:
+  - name: symptom
+    required: true
+    description: User-visible failure, alert, service symptom, or operational concern.
+  - name: affected-service
+    required: false
+    description: Optional claudeclaw-* systemd service or subsystem.
+
+steps:
+  - id: health-checks
+    name: VPS/service health checks
+    instructions:
+      - Inspect service status with systemctl --user.
+      - Check dashboard and runtime health surfaces when available.
+      - Keep checks read-only until remediation is approved.
+  - id: log-review
+    name: log review
+    instructions:
+      - Inspect recent logs with journalctl --user.
+      - Correlate symptoms to service, time window, and recent deploys or config changes.
+  - id: remediation
+    name: safe remediation recommendations
+    instructions:
+      - Produce ranked remediation options with blast radius and rollback.
+      - Stop before restart, deploy, credential edit, issue closure, or production data mutation unless Noah approval is explicit.
+  - id: report
+    name: Triage report
+    instructions:
+      - Include symptom, evidence, commands run, likely cause, recommended next step, and approval needed.

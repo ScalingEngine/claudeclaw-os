@@ -1,0 +1,48 @@
+name: claudeclaw-bugfix
+title: ClaudeClaw bugfix workflow
+requirement: FLOW-02
+summary: Run diagnosis, focused fix, regression check, and PR/report output for ClaudeClaw bugs.
+
+policy:
+  routing: docs/agent-workflow-routing.md
+  workspace: docs/archon-workspaces.md
+  run_cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+  guard: scripts/archon-workspace-guard.sh
+  production_checkout: /home/devuser/claudeclaw is read-only discovery context.
+
+inputs:
+  - name: run-id
+    required: true
+    description: Unique worktree run identifier under /home/devuser/claudeclaw-worktrees/<run-id>.
+  - name: symptom
+    required: true
+    description: Bug report, failing command, incident note, or reproduction.
+
+steps:
+  - id: workspace-guard
+    name: Verify isolated bugfix workspace
+    run:
+      - scripts/archon-workspace-guard.sh /home/devuser/claudeclaw-worktrees/<run-id>
+  - id: diagnosis
+    name: diagnosis
+    instructions:
+      - Reproduce or narrow the bug before editing.
+      - Inspect relevant logs, tests, and source from the isolated worktree.
+      - State the suspected cause and evidence.
+  - id: focused-fix
+    name: focused fix
+    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+    instructions:
+      - Make the smallest change that addresses the diagnosed cause.
+      - Add or update a regression test when practical.
+  - id: regression-check
+    name: regression check
+    cwd: /home/devuser/claudeclaw-worktrees/<run-id>
+    run:
+      - npm run typecheck
+      - npm test
+  - id: report
+    name: Produce PR/report output
+    instructions:
+      - Summarize symptom, diagnosis, fix, regression check, changed files, and any residual risk.
+      - Stop before production deploy unless Noah approval is explicit for that exact deploy scope.
