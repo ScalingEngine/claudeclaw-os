@@ -1,20 +1,20 @@
 ---
 phase: 02-safe-workspace-and-deploy-boundary
 verified: 2026-05-05T23:11:37Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "Run the VPS disposable-worktree validation from /home/devuser/claudeclaw"
     expected: "A worktree under /home/devuser/claudeclaw-worktrees/<run-id> passes the guard, /home/devuser/claudeclaw fails the guard, a forbidden .env.test-forbidden file fails the guard, and cleanup removes the worktree and branch."
-    why_human: "The acceptance check requires access to the VPS production checkout and user-systemd-adjacent filesystem paths, which are not available from this local macOS verification runtime."
+    result: "passed on VPS with RUN_ID=20260506010133-phase2-check"
 ---
 
 # Phase 2: Safe Workspace and Deploy Boundary Verification Report
 
 **Phase Goal:** Establish the safe boundary for Archon coding workflows by adding a workspace guard, a worktree/deploy/rollback runbook, and an update to the Phase 1 runtime runbook that routes coding workflows away from production.
 **Verified:** 2026-05-05T23:11:37Z
-**Status:** human_needed
+**Status:** passed
 **Re-verification:** No - initial verification
 
 ## Goal Achievement
@@ -84,17 +84,17 @@ No orphaned Phase 2 requirements were found. `.planning/REQUIREMENTS.md` maps on
 |------|------|---------|----------|--------|
 | None | - | - | - | Targeted scans found no TODO/FIXME/placeholders, empty implementations, hardcoded empty rendered data, or console-log-only handlers in the phase files. |
 
-### Human Verification Required
+### Human Verification Completed
 
 ### 1. VPS Disposable Worktree Validation
 
 **Test:** On the VPS, run the documented disposable-worktree validation from `/home/devuser/claudeclaw`: create `/home/devuser/claudeclaw-worktrees/${RUN_ID}`, run the guard against that worktree, run the guard against `/home/devuser/claudeclaw`, add `.env.test-forbidden` inside the worktree and rerun the guard, then remove the worktree and branch.
 **Expected:** The disposable worktree guard exits 0; the production checkout guard exits non-zero; the forbidden `.env.test-forbidden` guard exits non-zero; cleanup removes the worktree and deletes `archon/${RUN_ID}`.
-**Why human:** This requires operator access to VPS paths and production-adjacent filesystem state that are not available from the local macOS verification runtime.
+**Result:** Passed on the VPS with `RUN_ID=20260506010133-phase2-check`: the clean worktree returned `Forbidden state: OK - none found`, the production checkout failed on the production boundary and forbidden live state, and `.env.test-forbidden` failed inside the disposable worktree.
 
 ### Gaps Summary
 
-No blocker gaps were found in the codebase artifacts, docs, wiring, or targeted local behavior. The phase is not marked `passed` because the verifier process requires remaining VPS-only acceptance validation to be handled as human verification.
+No blocker gaps were found in the codebase artifacts, docs, wiring, targeted local behavior, or VPS disposable-worktree validation.
 
 ---
 
