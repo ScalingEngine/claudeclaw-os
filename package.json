@@ -19,6 +19,7 @@
     "check:archon-workflow-pack": "bash scripts/check-archon-workflow-pack.sh",
     "check:archon-observability": "bash scripts/check-archon-observability.sh",
     "test:archon-workspace-guard": "bash scripts/test-archon-workspace-guard.sh",
+    "test:archon-runs": "bash scripts/test-archon-runs.sh",
     "migrate": "tsx scripts/migrate.ts",
     "setup": "tsx scripts/setup.ts",
     "status": "tsx scripts/status.ts",
