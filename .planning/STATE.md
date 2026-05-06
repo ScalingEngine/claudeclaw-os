@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Archon Workflow Engine
-status: executing
-last_updated: "2026-05-06T03:37:38.474Z"
-last_activity: 2026-05-06 -- Phase 04 planning complete
+status: complete
+last_updated: "2026-05-06T12:43:59.947Z"
+last_activity: 2026-05-06 -- Phase 04 GAP-01 complete
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 04 (claudeclaw-workflow-pack) — COMPLETE
-Plan: 1 of 1
-Status: Ready to execute
-Last activity: 2026-05-06 -- Phase 04 planning complete
+Plan: 2 of 2
+Status: Complete
+Last activity: 2026-05-06 -- Phase 04 GAP-01 complete
 
 ## Next Action
 
@@ -43,6 +43,9 @@ Run Phase 4 verification and VPS workflow install/list checks, then continue to 
 - [Phase 04]: ClaudeClaw workflow sources live in archon/workflows/ and install into ~/.archon/workflows on the VPS.
 - [Phase 04]: Local workflow pack validation is deterministic and grep-based; VPS Archon schema/list validation remains an operator install step.
 - [Phase 04]: Coding and bugfix workflows require /home/devuser/claudeclaw-worktrees/<run-id> plus scripts/archon-workspace-guard.sh before implementation.
+- [Phase 04 GAP-01]: Workflow installs require clean staged and unstaged archon/workflows/claudeclaw-*.yaml sources before runtime copy or removal.
+- [Phase 04 GAP-01]: Installer synchronization removes stale installed claudeclaw-*.yaml files only inside the owned runtime namespace.
+- [Phase 04 GAP-01]: Local validation preserves the required modern Bash installer contract while adding Bash 3 compatibility fallbacks for macOS.
 
 ## Performance Metrics
 
@@ -51,6 +54,7 @@ Run Phase 4 verification and VPS workflow install/list checks, then continue to 
 | 02 | 02 | 216s | 4 | 3 |
 | 03 | 03 | 261s | 3 | 6 |
 | 04 | 04 | 325s | 3 | 10 |
+| 04 | GAP-01 | 347s | 3 | 3 |
 
 ## Recent Commits (since milestone bootstrap)
 
