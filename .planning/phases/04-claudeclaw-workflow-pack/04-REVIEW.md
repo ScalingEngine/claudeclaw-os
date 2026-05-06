@@ -1,92 +1,43 @@
 ---
 phase: 04-claudeclaw-workflow-pack
-reviewed: 2026-05-06T02:52:30Z
+reviewed: 2026-05-06T13:03:37Z
 depth: standard
-files_reviewed: 10
+files_reviewed: 3
 files_reviewed_list:
-  - archon/workflows/claudeclaw-bugfix.yaml
-  - archon/workflows/claudeclaw-coding-plan-to-pr.yaml
-  - archon/workflows/claudeclaw-comms-content-draft.yaml
-  - archon/workflows/claudeclaw-ops-triage.yaml
-  - archon/workflows/claudeclaw-strategy-ingest.yaml
-  - archon/workflows/claudeclaw-workflow-authoring.yaml
-  - docs/claudeclaw-workflow-pack.md
-  - package.json
-  - scripts/check-archon-workflow-pack.sh
   - scripts/install-archon-workflows.sh
+  - scripts/check-archon-workflow-pack.sh
+  - docs/claudeclaw-workflow-pack.md
 findings:
-  critical: 2
+  critical: 0
   warning: 0
   info: 0
-  total: 2
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 04: Code Review Report
 
-**Reviewed:** 2026-05-06T02:52:30Z
+**Reviewed:** 2026-05-06T13:03:37Z
 **Depth:** standard
-**Files Reviewed:** 10
-**Status:** issues_found
+**Files Reviewed:** 3
+**Status:** clean
 
 ## Summary
 
-Reviewed the six Archon workflow definitions, operator docs, package script wiring, and the workflow-pack install/check scripts. The workflow YAML parses and the current validator passes, but the installer does not enforce the committed-source boundary or rollback semantics documented for production Archon workflow state.
+Reviewed the Archon workflow installer, workflow-pack validator, and workflow-pack documentation at standard depth. The installer enumerates only committed `archon/workflows/claudeclaw-*.yaml` sources, refuses staged or unstaged tracked workflow-source changes before copying or stale cleanup, installs the committed desired set, and removes stale files only from the owned installed `claudeclaw-*.yaml` namespace.
 
-## Critical Issues
+The validator now protects pre-existing probe paths before creating its own probes and uses ownership flags for cleanup. `CREATED_UNTRACKED_PROBE` and `CREATED_STAGED_PROBE` are set only after the validator creates the corresponding files, cleared after successful manual cleanup, and checked by the EXIT trap before removing probe paths. That resolves the prior data-loss risk where a pre-existing probe file could be removed after a failure.
 
-### CR-01: Installer Can Publish Untracked Workflow Files
+The documentation accurately describes the committed-source install model, clean-source precondition, owned namespace cleanup behavior, local validation command, VPS workflow discovery checks, approval boundaries, and forbidden runtime-state handling.
 
-**Classification:** BLOCKER
-**File:** `scripts/install-archon-workflows.sh:36`
-**Issue:** The installer builds `WORKFLOW_FILES` from the filesystem glob `"$SOURCE_DIR"/claudeclaw-*.yaml`, so any untracked, ignored, generated, or locally staged `claudeclaw-*.yaml` under `archon/workflows/` is copied into `~/.archon/workflows`. This contradicts the documented guarantee in `docs/claudeclaw-workflow-pack.md:30` that only committed workflow sources are installed, and it can publish an unreviewed Archon workflow into the runtime discovery path.
-**Fix:**
-```bash
-mapfile -d '' WORKFLOW_FILES < <(
-  git -C "$ROOT" ls-files -z 'archon/workflows/claudeclaw-*.yaml'
-)
+All reviewed files meet quality standards. No critical or warning findings remain.
 
-if [ "${#WORKFLOW_FILES[@]}" -eq 0 ]; then
-  printf 'ERROR: no committed claudeclaw-*.yaml files found\n' >&2
-  exit 1
-fi
+## Verification
 
-for i in "${!WORKFLOW_FILES[@]}"; do
-  WORKFLOW_FILES[$i]="$ROOT/${WORKFLOW_FILES[$i]}"
-done
-```
-Also extend `scripts/check-archon-workflow-pack.sh` to assert the installed source set comes from `git ls-files` rather than an unconstrained glob.
-
-### CR-02: Reinstall/Rollback Leaves Stale Workflows Discoverable
-
-**Classification:** BLOCKER
-**File:** `scripts/install-archon-workflows.sh:52`
-**Issue:** The installer only copies current source files and never removes previously installed `claudeclaw-*.yaml` files from `~/.archon/workflows`. If a workflow is renamed, deleted, or rolled back as described in `docs/claudeclaw-workflow-pack.md:73`, the old workflow remains installed and Archon can continue discovering and launching it after the supposed rollback.
-**Fix:**
-```bash
-declare -A DESIRED_WORKFLOWS=()
-for workflow_file in "${WORKFLOW_FILES[@]}"; do
-  DESIRED_WORKFLOWS["$(basename "$workflow_file")"]=1
-done
-
-shopt -s nullglob
-for target_file in "$ARCHON_WORKFLOWS_DIR"/claudeclaw-*.yaml; do
-  target_name="$(basename "$target_file")"
-  if [ -z "${DESIRED_WORKFLOWS[$target_name]+x}" ]; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      printf 'DRY-RUN: would remove stale workflow %s\n' "$target_file"
-    else
-      rm -f "$target_file"
-      printf 'REMOVED: stale workflow %s\n' "$target_file"
-    fi
-  fi
-done
-shopt -u nullglob
-```
-Document that the installer synchronizes the owned `claudeclaw-*.yaml` namespace, and add a check using a temporary target directory with a stale workflow file.
+Ran `npm run check:archon-workflow-pack`; it passed. A post-check `git status` scoped to the reviewed source files and validator probe paths showed no source changes or leftover probe files.
 
 ---
 
-_Reviewed: 2026-05-06T02:52:30Z_
+_Reviewed: 2026-05-06T13:03:37Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
