@@ -1,20 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const extractor = vi.hoisted(() => ({
+  nextResult: '',
+  nextError: null as Error | null,
+  mockQuery: vi.fn(),
+}));
+
 vi.mock('./gemini.js', () => ({
-  generateContent: vi.fn(),
   parseJsonResponse: vi.fn(),
 }));
 
-// Mock the Claude SDK so the new Anthropic-Haiku ingestion path doesn't
-// actually try to spawn a subprocess in tests. We force it to throw so
-// the code falls back to the mocked Gemini path the existing tests
-// already exercise.
+// Mock the Claude SDK so extractViaClaude exercises its real prompt and
+// parse pipeline without spawning a subprocess.
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: vi.fn(() => {
-    async function* failing(): AsyncGenerator<never> {
-      throw new Error('mocked: Claude SDK unavailable in test env');
+  query: extractor.mockQuery.mockImplementation(() => {
+    async function* respond() {
+      if (extractor.nextError) throw extractor.nextError;
+      yield { type: 'result', result: extractor.nextResult };
     }
-    return failing();
+    return respond();
   }),
 }));
 
@@ -41,66 +45,77 @@ vi.mock('./logger.js', () => ({
 }));
 
 import { ingestConversationTurn } from './memory-ingest.js';
-import { generateContent, parseJsonResponse } from './gemini.js';
+import { parseJsonResponse } from './gemini.js';
 import { saveStructuredMemoryAtomic } from './db.js';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
-const mockGenerateContent = vi.mocked(generateContent);
+const mockQuery = vi.mocked(query);
 const mockParseJson = vi.mocked(parseJsonResponse);
 const mockSave = vi.mocked(saveStructuredMemoryAtomic);
+
+function setExtractorResponse(raw: string, parsed: any) {
+  extractor.nextResult = raw;
+  extractor.nextError = null;
+  mockParseJson.mockReturnValue(parsed);
+}
+
+function setExtractorError(err: Error) {
+  extractor.nextResult = '';
+  extractor.nextError = err;
+}
 
 describe('ingestConversationTurn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    extractor.nextResult = '';
+    extractor.nextError = null;
   });
 
-  // ── Hard filters (skip before hitting Gemini) ────────────────────
+  // ── Hard filters (skip before hitting the extractor) ─────────────
 
   it('skips messages <= 15 characters', async () => {
     const result = await ingestConversationTurn('chat1', 'short msg', 'ok');
     expect(result).toBe(false);
-    expect(mockGenerateContent).not.toHaveBeenCalled();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it('skips messages exactly 15 characters', async () => {
     const result = await ingestConversationTurn('chat1', '123456789012345', 'ok');
     expect(result).toBe(false);
-    expect(mockGenerateContent).not.toHaveBeenCalled();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it('processes messages of 16 characters', async () => {
-    mockGenerateContent.mockResolvedValue('{}');
-    mockParseJson.mockReturnValue({ skip: true });
+    setExtractorResponse('{}', { skip: true });
     const result = await ingestConversationTurn('chat1', '1234567890123456', 'ok');
-    // Should have called Gemini even though it was skipped by LLM
-    expect(mockGenerateContent).toHaveBeenCalled();
+    // Should have called the extractor even though it was skipped by LLM.
+    expect(mockQuery).toHaveBeenCalled();
     expect(result).toBe(false);
   });
 
   it('skips messages starting with /', async () => {
     const result = await ingestConversationTurn('chat1', '/chatid some long command text here', 'Your ID is 12345');
     expect(result).toBe(false);
-    expect(mockGenerateContent).not.toHaveBeenCalled();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  // ── Gemini decides to skip ────────────────────────────────────────
+  // ── Extractor decides to skip ────────────────────────────────────
 
-  it('returns false when Gemini says skip', async () => {
-    mockGenerateContent.mockResolvedValue('{"skip": true}');
-    mockParseJson.mockReturnValue({ skip: true });
+  it('returns false when extractor says skip', async () => {
+    setExtractorResponse('{"skip": true}', { skip: true });
     const result = await ingestConversationTurn('chat1', 'ok sounds good thanks for doing that', 'No problem.');
     expect(result).toBe(false);
     expect(mockSave).not.toHaveBeenCalled();
   });
 
-  it('returns false when Gemini returns null (parse failure)', async () => {
-    mockGenerateContent.mockResolvedValue('garbage');
-    mockParseJson.mockReturnValue(null);
+  it('returns false when parse returns null (parse failure)', async () => {
+    setExtractorResponse('garbage', null);
     const result = await ingestConversationTurn('chat1', 'some message that is long enough', 'response');
     expect(result).toBe(false);
     expect(mockSave).not.toHaveBeenCalled();
   });
 
-  // ── Gemini extracts a memory ──────────────────────────────────────
+  // ── Extractor extracts a memory ──────────────────────────────────
 
   it('saves a structured memory on valid extraction', async () => {
     const extraction = {
@@ -110,8 +125,7 @@ describe('ingestConversationTurn', () => {
       topics: ['preferences', 'UI'],
       importance: 0.8,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn(
       'chat1',
@@ -127,9 +141,9 @@ describe('ingestConversationTurn', () => {
       ['dark mode', 'UI'],
       ['preferences', 'UI'],
       0.8,
-      expect.any(Array),
+      expect.arrayContaining([0.1, 0.2, 0.3]),
       'conversation',
-      'main',
+      'ezra',
     );
   });
 
@@ -143,8 +157,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 0.25,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'some trivial message longer than fifteen', 'ok');
     expect(result).toBe(false);
@@ -159,8 +172,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 0.2,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'some borderline message longer than fifteen', 'ok');
     expect(result).toBe(false);
@@ -175,8 +187,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 0.3,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'some borderline message longer than fifteen', 'ok');
     expect(result).toBe(false);
@@ -191,8 +202,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 0.5,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'some useful message longer than fifteen', 'ok');
     expect(result).toBe(true);
@@ -209,8 +219,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 1.5,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     await ingestConversationTurn('chat1', 'extremely important message for testing', 'noted');
     expect(mockSave).toHaveBeenCalledWith(
@@ -220,9 +229,9 @@ describe('ingestConversationTurn', () => {
       [],
       [],
       1.0,  // clamped
-      expect.any(Array),
+      expect.arrayContaining([0.1, 0.2, 0.3]),
       'conversation',
-      'main',
+      'ezra',
     );
   });
 
@@ -234,8 +243,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: -0.5,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     // importance -0.5 < 0.2 threshold, so it should be skipped
     const result = await ingestConversationTurn('chat1', 'message with negative importance test', 'response');
@@ -252,8 +260,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 0.7,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'message with no summary extracted from it', 'response');
     expect(result).toBe(false);
@@ -268,8 +275,7 @@ describe('ingestConversationTurn', () => {
       topics: [],
       importance: 'high' as unknown as number,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'message where importance is a string', 'response');
     expect(result).toBe(false);
@@ -284,8 +290,7 @@ describe('ingestConversationTurn', () => {
       summary: 'No entities or topics',
       importance: 0.5,
     };
-    mockGenerateContent.mockResolvedValue(JSON.stringify(extraction));
-    mockParseJson.mockReturnValue(extraction);
+    setExtractorResponse(JSON.stringify(extraction), extraction);
 
     const result = await ingestConversationTurn('chat1', 'message with no entities or topics at all', 'response');
     expect(result).toBe(true);
@@ -296,16 +301,16 @@ describe('ingestConversationTurn', () => {
       [],  // defaults to empty
       [],  // defaults to empty
       0.5,
-      expect.any(Array),
+      expect.arrayContaining([0.1, 0.2, 0.3]),
       'conversation',
-      'main',
+      'ezra',
     );
   });
 
   // ── Error handling ────────────────────────────────────────────────
 
-  it('returns false when Gemini API throws', async () => {
-    mockGenerateContent.mockRejectedValue(new Error('API rate limited'));
+  it('returns false when extractor throws', async () => {
+    setExtractorError(new Error('API rate limited'));
 
     const result = await ingestConversationTurn('chat1', 'this message should not crash the bot', 'response');
     expect(result).toBe(false);
@@ -315,13 +320,16 @@ describe('ingestConversationTurn', () => {
   // ── Message truncation ────────────────────────────────────────────
 
   it('truncates long messages to 2000 chars in prompt', async () => {
-    mockGenerateContent.mockResolvedValue('{"skip": true}');
-    mockParseJson.mockReturnValue({ skip: true });
+    setExtractorResponse('{"skip": true}', { skip: true });
 
     const longMsg = 'x'.repeat(5000);
     await ingestConversationTurn('chat1', longMsg, 'response');
 
-    const promptArg = mockGenerateContent.mock.calls[0][0];
+    const queryArg = mockQuery.mock.calls[0][0] as {
+      prompt: AsyncGenerator<{ message: { content: string } }>;
+    };
+    const promptEvent = await queryArg.prompt.next();
+    const promptArg = promptEvent.value.message.content;
     // The prompt should contain the truncated message, not the full 5000 chars
     expect(promptArg).not.toContain('x'.repeat(3000));
     expect(promptArg).toContain('x'.repeat(2000));
