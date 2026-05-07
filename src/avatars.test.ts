@@ -39,6 +39,7 @@ vi.mock('./config.js', () => {
     PROJECT_ROOT: TEST_ROOT,
     STORE_DIR: path.join(TEST_ROOT, 'store'),
     CLAUDECLAW_CONFIG: path.join(TEST_ROOT, 'config'),
+    MAIN_AGENT_ID: 'main',
     expandHome: (p: string) => p,
   };
 });

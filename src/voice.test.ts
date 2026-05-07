@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { execFileSync } from 'child_process';
 import path from 'path';
 
 vi.mock('./env.js', () => ({
@@ -14,6 +15,14 @@ import { readEnvFile } from './env.js';
 
 const mockReadEnvFile = vi.mocked(readEnvFile);
 const isMac = process.platform === 'darwin';
+const hasFfmpeg = (() => {
+  try {
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 describe('voiceCapabilities', () => {
   beforeEach(() => {
@@ -78,6 +87,7 @@ describe('voiceCapabilities', () => {
 describe('synthesizeSpeechLocal', () => {
   it('produces a non-empty OGG buffer on macOS', async () => {
     if (!isMac) return;
+    if (!hasFfmpeg) return;
     mockReadEnvFile.mockReturnValue({});
     const buffer = await synthesizeSpeechLocal('Hello, this is a test.');
     expect(buffer).toBeInstanceOf(Buffer);

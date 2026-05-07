@@ -13,18 +13,41 @@
 // Env vars are set by `src/test-env-setup.ts` (vitest setupFiles) so they
 // land BEFORE config.ts evaluates at import time.
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { _initTestDatabase } from './db.js';
 import { buildDashboardApp } from './dashboard.js';
+import { MAIN_AGENT_ID, PROJECT_ROOT } from './config.js';
 import type { Hono } from 'hono';
 
 const TOKEN = 'test-contract-token';
 const Q = '?token=' + TOKEN;
 
+// The SPA shell handlers serve dist/web/index.html without a token.
+// Create a stub so the tests don't fall through to legacy mode, which
+// embeds the token and therefore requires auth.
+const SPA_INDEX = path.join(PROJECT_ROOT, 'dist', 'web', 'index.html');
+const SPA_INDEX_EXISTED = fs.existsSync(SPA_INDEX);
+
 let app: Hono;
 
 beforeAll(() => {
+  if (!SPA_INDEX_EXISTED) {
+    fs.mkdirSync(path.dirname(SPA_INDEX), { recursive: true });
+    fs.writeFileSync(SPA_INDEX, '<!doctype html><html><body>stub</body></html>');
+  }
   app = buildDashboardApp(undefined) as unknown as Hono;
+});
+
+afterAll(() => {
+  if (!SPA_INDEX_EXISTED) {
+    try {
+      fs.unlinkSync(SPA_INDEX);
+    } catch {
+      // Best-effort cleanup only; a failed unlink should not mask test results.
+    }
+  }
 });
 
 beforeEach(() => {
@@ -400,9 +423,11 @@ describe('GET /api/security/status', () => {
 });
 
 describe('GET /api/chat/history', () => {
-  it('rejects missing chatId with 400', async () => {
+  it('returns empty turns when chatId is omitted', async () => {
     const res = await get('/api/chat/history');
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const body = await jsonOf(res);
+    expect(body).toMatchObject({ turns: expect.any(Array) });
   });
 
   it('returns { turns: [] } with chatId', async () => {
@@ -415,7 +440,7 @@ describe('GET /api/chat/history', () => {
 
 describe('PATCH /api/agents/:id/model', () => {
   it('rejects missing model with 400', async () => {
-    const res = await app.request('/api/agents/main/model' + Q, {
+    const res = await app.request(`/api/agents/${MAIN_AGENT_ID}/model` + Q, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
@@ -424,7 +449,7 @@ describe('PATCH /api/agents/:id/model', () => {
   });
 
   it('rejects invalid model with 400', async () => {
-    const res = await app.request('/api/agents/main/model' + Q, {
+    const res = await app.request(`/api/agents/${MAIN_AGENT_ID}/model` + Q, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: 'gpt-5' }),
@@ -433,7 +458,7 @@ describe('PATCH /api/agents/:id/model', () => {
   });
 
   it('main response includes restartRequired: false', async () => {
-    const res = await app.request('/api/agents/main/model' + Q, {
+    const res = await app.request(`/api/agents/${MAIN_AGENT_ID}/model` + Q, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: 'claude-sonnet-4-6' }),
@@ -442,7 +467,7 @@ describe('PATCH /api/agents/:id/model', () => {
     const body = await jsonOf(res);
     expect(body).toMatchObject({
       ok: true,
-      agent: 'main',
+      agent: MAIN_AGENT_ID,
       model: 'claude-sonnet-4-6',
       restartRequired: false,
     });
@@ -485,7 +510,7 @@ describe('avatar endpoints share error shape and status semantics', () => {
   it('GET on main with no avatar resolved returns 204', async () => {
     // main always "exists" per agentExists; with no bundled or mutable
     // avatar in the test env, the resolver returns null → 204.
-    const res = await app.request('/api/agents/main/avatar' + Q);
+    const res = await app.request(`/api/agents/${MAIN_AGENT_ID}/avatar` + Q);
     expect([200, 204]).toContain(res.status);
     if (res.status === 204) {
       expect(res.headers.get('content-type') ?? '').not.toMatch(/text\/html/);

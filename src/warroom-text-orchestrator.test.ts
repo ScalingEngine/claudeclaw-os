@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./config.js', () => ({
   PROJECT_ROOT: '/tmp/test-orchestrator',
   CLAUDECLAW_CONFIG: '/tmp/test-orchestrator/config',
+  MAIN_AGENT_ID: 'main',
 }));
 
 vi.mock('./env.js', () => ({
@@ -112,8 +113,9 @@ describe('pickSlashRoster', () => {
   it('default order with no config: canonical first, others appended', () => {
     const roster = buildRoster(['main', 'comms', 'content', 'ops', 'research', 'meta']);
     const result = pickSlashRoster(roster, {}, () => null);
-    // canonical is research, ops, comms, content, main; meta is non-canonical
-    expect(result.speakers).toEqual(['research', 'ops', 'comms', 'content', 'main', 'meta']);
+    // canonical starts with MAIN_AGENT_ID; legacy ids not in the canonical
+    // list remain in roster order after canonical speakers.
+    expect(result.speakers).toEqual(['main', 'comms', 'content', 'ops', 'research', 'meta']);
     expect(result.skipped).toEqual([]);
     expect(result.adhoc).toBe(false);
   });

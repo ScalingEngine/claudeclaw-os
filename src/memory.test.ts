@@ -49,6 +49,7 @@ import {
 } from './db.js';
 
 import { ingestConversationTurn } from './memory-ingest.js';
+import { MAIN_AGENT_ID } from './config.js';
 
 const mockSearchMemories = vi.mocked(searchMemories);
 const mockGetRecentHighImportance = vi.mocked(getRecentHighImportanceMemories);
@@ -64,7 +65,7 @@ function makeMemory(overrides: Record<string, unknown> = {}) {
     id: 1,
     chat_id: 'chat1',
     source: 'conversation',
-    agent_id: 'main',
+    agent_id: MAIN_AGENT_ID,
     raw_text: 'raw text',
     summary: 'A test memory',
     entities: '[]',
@@ -143,13 +144,13 @@ describe('saveConversationTurn', () => {
 
   it('logs both user and assistant messages to conversation log', () => {
     saveConversationTurn('chat1', 'hello world from the user!!!', 'Noted.');
-    expect(mockLogConversationTurn).toHaveBeenCalledWith('chat1', 'user', 'hello world from the user!!!', undefined, 'main');
-    expect(mockLogConversationTurn).toHaveBeenCalledWith('chat1', 'assistant', 'Noted.', undefined, 'main');
+    expect(mockLogConversationTurn).toHaveBeenCalledWith('chat1', 'user', 'hello world from the user!!!', undefined, MAIN_AGENT_ID);
+    expect(mockLogConversationTurn).toHaveBeenCalledWith('chat1', 'assistant', 'Noted.', undefined, MAIN_AGENT_ID);
   });
 
   it('fires async ingestion', () => {
     saveConversationTurn('chat1', 'I prefer TypeScript over JavaScript always and forever', 'Noted.');
-    expect(mockIngest).toHaveBeenCalledWith('chat1', 'I prefer TypeScript over JavaScript always and forever', 'Noted.', 'main');
+    expect(mockIngest).toHaveBeenCalledWith('chat1', 'I prefer TypeScript over JavaScript always and forever', 'Noted.', MAIN_AGENT_ID);
   });
 });
 
