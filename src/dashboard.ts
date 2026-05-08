@@ -1821,7 +1821,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
       turns,
       compactions,
       sessionAge,
-      model: agentDefaultModel || 'sonnet-4-6',
+      model: agentDefaultModel || 'claude-sonnet-4-6',
       telegramConnected: getTelegramConnected(),
       waConnected: WHATSAPP_ENABLED,
       slackConnected: !!SLACK_USER_TOKEN,
@@ -1886,7 +1886,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
           id,
           name: config.name,
           description: config.description,
-          model: config.model ?? 'claude-opus-4-6',
+          model: config.model ?? 'claude-sonnet-4-6',
           running,
           todayTurns: stats.todayTurns,
           todayCost: stats.todayCost,
@@ -1911,7 +1911,7 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     }
     const mainStats = getAgentTokenStats(MAIN_AGENT_ID);
     const allAgents = [
-      { id: MAIN_AGENT_ID, name: 'Ezra', description: 'Chief of staff -- orchestrator, primary ClaudeClaw bot', model: 'claude-opus-4-6', running: mainRunning, todayTurns: mainStats.todayTurns, todayCost: mainStats.todayCost, avatar_etag: avatarEtagForId(MAIN_AGENT_ID) },
+      { id: MAIN_AGENT_ID, name: 'Ezra', description: 'Chief of staff -- orchestrator, primary ClaudeClaw bot', model: 'claude-sonnet-4-6', running: mainRunning, todayTurns: mainStats.todayTurns, todayCost: mainStats.todayCost, avatar_etag: avatarEtagForId(MAIN_AGENT_ID) },
       ...agents,
     ];
 
