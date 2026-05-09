@@ -2855,6 +2855,46 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     return c.json({ entries });
   });
 
+  // ── Vault concept fetch (Phase 2: brain bridge) ─────────────────────
+  // Returns frontmatter + body + activity for a vault concept by slug.
+  // Used by Mission Control to open a concept side-panel from a hive_mind
+  // row that has a `{type:"concept",path:"knowledge/concepts/<slug>"}`
+  // artifact. Path traversal blocked: slug must match [a-z0-9-]+.
+  app.get('/api/vault/concept/:slug', (c) => {
+    const slug = c.req.param('slug');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+      return c.json({ error: 'invalid slug' }, 400);
+    }
+    const vaultRoot = process.env.OBSIDIAN_VAULT_PATH ||
+      path.join(process.env.HOME || '', 'NoahBrain/Memory');
+    const filePath = path.join(vaultRoot, 'knowledge/concepts', `${slug}.md`);
+    if (!filePath.startsWith(vaultRoot) || !fs.existsSync(filePath)) {
+      return c.json({ error: 'concept not found' }, 404);
+    }
+    const text = fs.readFileSync(filePath, 'utf-8');
+    const fmMatch = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!fmMatch) {
+      return c.json({ slug, frontmatter: {}, body: text, activity: '' });
+    }
+    const fm = fmMatch[1];
+    const body = fmMatch[2];
+    const titleMatch = fm.match(/^title:\s*"?([^"\n]+)"?/m);
+    const tagsInline = fm.match(/^tags:\s*\[([^\]]*)\]/m);
+    const updatedMatch = fm.match(/^updated:\s*(\S+)/m);
+    const statusMatch = fm.match(/^status:\s*(\S+)/m);
+    const activityMatch = body.match(/## Activity \(auto-bridged\)\s*\n([\s\S]*?)(?=\n## |$)/);
+    return c.json({
+      slug,
+      title: titleMatch?.[1]?.trim() || slug,
+      tags: tagsInline?.[1]?.split(',').map((t) => t.trim().replace(/['"]/g, '')) || [],
+      updated: updatedMatch?.[1]?.trim() || null,
+      status: statusMatch?.[1]?.trim() || null,
+      body: body.replace(/## Activity \(auto-bridged\)[\s\S]*$/, '').trim(),
+      activity: activityMatch?.[1]?.trim() || null,
+      vaultPath: `knowledge/concepts/${slug}.md`,
+    });
+  });
+
   // ── Chat endpoints ─────────────────────────────────────────────────
 
   // SSE stream for real-time chat updates

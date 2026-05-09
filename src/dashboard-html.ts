@@ -355,6 +355,16 @@ ${WARROOM_ENABLED ? `<div class="card" style="border:1px solid #1e3a5f">
   </div>
 </div>
 
+<!-- Vault Concept Detail Modal (Phase 2: brain bridge) -->
+<div id="concept-modal-overlay" onclick="closeConceptModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:40;opacity:0;pointer-events:none;transition:opacity 0.2s"></div>
+<div id="concept-modal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;background:#141414;border:1px solid #2a2a2a;border-radius:12px;width:90%;max-width:640px;max-height:80vh;opacity:0;pointer-events:none;transition:transform 0.2s ease,opacity 0.2s ease;display:flex;flex-direction:column">
+  <div class="flex items-center justify-between px-4 pt-4 pb-2">
+    <h3 class="text-sm font-bold text-white" id="concept-modal-title">Concept</h3>
+    <button onclick="closeConceptModal()" class="text-gray-500 hover:text-white" style="background:none;border:none;cursor:pointer;font-size:16px">&times;</button>
+  </div>
+  <div id="concept-modal-body" style="overflow-y:auto;flex:1"></div>
+</div>
+
 <!-- Agent Detail Modal -->
 <div id="agent-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:40;opacity:0;pointer-events:none;transition:opacity 0.2s"></div>
 <div id="agent-modal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;background:#141414;border:1px solid #2a2a2a;border-radius:12px;width:90%;max-width:500px;max-height:80vh;opacity:0;pointer-events:none;transition:transform 0.2s ease,opacity 0.2s ease;display:flex;flex-direction:column">
@@ -2005,6 +2015,21 @@ function copyToClipboard(text) {
   }).catch(function() {});
 }
 
+function extractConceptSlug(artifacts) {
+  if (!artifacts) return null;
+  try {
+    const arr = JSON.parse(artifacts);
+    if (!Array.isArray(arr)) return null;
+    for (const a of arr) {
+      if (a && a.type === 'concept' && typeof a.path === 'string') {
+        const m = a.path.match(/^knowledge\/concepts\/([a-z0-9][a-z0-9-]*)$/);
+        if (m) return m[1];
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function loadHiveMind() {
   try {
     const data = await api('/api/hive-mind?limit=15');
@@ -2019,15 +2044,75 @@ async function loadHiveMind() {
       const color = AGENT_COLORS[e.agent_id] || '#6b7280';
       const isBlurred = allRevealed ? false : (blurState[i] !== false);
       const blurClass = isBlurred ? 'privacy-blur' : '';
+      const conceptSlug = extractConceptSlug(e.artifacts);
+      const conceptIcon = conceptSlug
+        ? '<button onclick="openConceptModal(\\'' + conceptSlug + '\\')" title="Open vault concept" style="background:none;border:none;cursor:pointer;color:#60a5fa;padding:0 4px;font-size:14px">📄</button>'
+        : '';
       return '<tr>' +
         '<td class="col-time">' + time + '</td>' +
         '<td class="col-agent" style="color:' + color + '">' + e.agent_id + '</td>' +
-        '<td class="col-action">' + escapeHtml(e.action) + '</td>' +
+        '<td class="col-action">' + escapeHtml(e.action) + conceptIcon + '</td>' +
         '<td><div class="col-summary ' + blurClass + '" data-section="hive" data-idx="' + i + '" onclick="toggleItemBlur(this)">' + escapeHtml(e.summary) + '</div></td>' +
       '</tr>';
     }).join('');
     container.innerHTML = '<table class="hive-table"><thead><tr><th class="col-time">Time</th><th class="col-agent">Agent</th><th class="col-action">Action</th><th>Summary</th></tr></thead><tbody>' + rows + '</tbody></table>';
   } catch {}
+}
+
+// ── Vault concept modal (Phase 2: brain bridge) ───────────────────────
+async function openConceptModal(slug) {
+  const overlay = document.getElementById('concept-modal-overlay');
+  const modal = document.getElementById('concept-modal');
+  const title = document.getElementById('concept-modal-title');
+  const body = document.getElementById('concept-modal-body');
+  if (!overlay || !modal || !title || !body) return;
+  title.textContent = 'Loading…';
+  body.innerHTML = '<div style="padding:16px;color:#9ca3af">Fetching ' + slug + '…</div>';
+  overlay.style.opacity = '1'; overlay.style.pointerEvents = 'auto';
+  modal.style.opacity = '1'; modal.style.pointerEvents = 'auto';
+  modal.style.transform = 'translate(-50%,-50%) scale(1)';
+  try {
+    const data = await api('/api/vault/concept/' + slug);
+    if (data.error) {
+      title.textContent = slug;
+      body.innerHTML = '<div style="padding:16px;color:#ef4444">' + escapeHtml(data.error) + '</div>';
+      return;
+    }
+    title.textContent = data.title || slug;
+    const tagBadges = (data.tags || []).map((t) =>
+      '<span style="background:#1f2937;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:4px">' + escapeHtml(t) + '</span>'
+    ).join('');
+    const statusBadge = data.status === 'stale-candidate'
+      ? '<span style="background:#7c2d12;color:#fbbf24;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:4px">stale</span>'
+      : data.status === 'stub'
+      ? '<span style="background:#374151;color:#9ca3af;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:4px">stub</span>'
+      : '';
+    const updated = data.updated ? '<span style="color:#6b7280;font-size:11px;margin-left:8px">updated ' + escapeHtml(data.updated) + '</span>' : '';
+    const activitySection = data.activity
+      ? '<details open style="margin-top:16px;border-top:1px solid #2a2a2a;padding-top:12px"><summary style="cursor:pointer;color:#60a5fa;font-size:13px;font-weight:600">Activity</summary><pre style="white-space:pre-wrap;color:#d1d5db;font-size:12px;margin-top:8px;font-family:ui-monospace,monospace">' + escapeHtml(data.activity) + '</pre></details>'
+      : '';
+    body.innerHTML =
+      '<div style="padding:16px">' +
+        '<div style="margin-bottom:12px">' + tagBadges + statusBadge + updated + '</div>' +
+        '<pre style="white-space:pre-wrap;color:#e5e7eb;font-size:13px;line-height:1.5;font-family:ui-sans-serif,system-ui">' + escapeHtml(data.body) + '</pre>' +
+        activitySection +
+        '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #2a2a2a;font-size:11px;color:#6b7280">' +
+          '<a href="obsidian://open?vault=NoahBrain&file=' + encodeURIComponent(data.vaultPath.replace(/\\.md$/, '')) + '" style="color:#60a5fa">Open in Obsidian →</a>' +
+          ' &nbsp;·&nbsp; <code>' + escapeHtml(data.vaultPath) + '</code>' +
+        '</div>' +
+      '</div>';
+  } catch (err) {
+    body.innerHTML = '<div style="padding:16px;color:#ef4444">Failed to load concept</div>';
+  }
+}
+
+function closeConceptModal() {
+  const overlay = document.getElementById('concept-modal-overlay');
+  const modal = document.getElementById('concept-modal');
+  if (!overlay || !modal) return;
+  overlay.style.opacity = '0'; overlay.style.pointerEvents = 'none';
+  modal.style.opacity = '0'; modal.style.pointerEvents = 'none';
+  modal.style.transform = 'translate(-50%,-50%) scale(0.95)';
 }
 
 // ── Privacy Blur ──────────────────────────────────────────────────────
