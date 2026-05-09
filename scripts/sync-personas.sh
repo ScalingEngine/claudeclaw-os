@@ -4,9 +4,12 @@
 #
 # Excludes:
 #   *.bak           — local backups from in-place edits
-#   ezra/           — orchestrator loads root CLAUDE.md directly, no overlay needed
-#                     (and ezra/CLAUDE.md is a local symlink to ~/.claudeclaw/CLAUDE.md
-#                      which would not resolve cleanly on the VPS)
+#   ezra/           — orchestrator loads root ~/.claudeclaw/CLAUDE.md directly
+#                     (see src/index.ts MAIN_AGENT_ID branch). Sync that file
+#                     separately if Ezra's persona changes:
+#                       rsync -av ~/.claudeclaw/CLAUDE.md vps:.claudeclaw/CLAUDE.md
+#                     The local agents/ezra/CLAUDE.md is a real-file mirror for
+#                     editor tooling, but the runtime never reads it.
 #
 # Companion to scripts/sync-skills.sh. Run after editing personas locally.
 # Going forward Noah is iterating on personas directly on the VPS, so this is

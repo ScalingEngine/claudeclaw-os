@@ -21,43 +21,43 @@ function assert(label: string, condition: boolean): void {
 
 // Test 1: Session isolation
 console.log('\n--- TEST 1: Session isolation ---');
-setSession('1234567890', 'main-session-123', 'main');
-setSession('1234567890', 'ops-session-456', 'ops');
-setSession('1234567890', 'research-session-789', 'research');
+setSession('1234567890', 'main-session-123', 'ezra');
+setSession('1234567890', 'ops-session-456', 'hopper');
+setSession('1234567890', 'research-session-789', 'vera');
 
-assert('Main session correct', getSession('1234567890', 'main') === 'main-session-123');
-assert('Ops session correct', getSession('1234567890', 'ops') === 'ops-session-456');
-assert('Research session correct', getSession('1234567890', 'research') === 'research-session-789');
+assert('Main session correct', getSession('1234567890', 'ezra') === 'main-session-123');
+assert('Ops session correct', getSession('1234567890', 'hopper') === 'ops-session-456');
+assert('Research session correct', getSession('1234567890', 'vera') === 'research-session-789');
 
-clearSession('1234567890', 'ops');
-assert('Ops cleared', getSession('1234567890', 'ops') === undefined);
-assert('Main unaffected after ops clear', getSession('1234567890', 'main') === 'main-session-123');
-assert('Research unaffected after ops clear', getSession('1234567890', 'research') === 'research-session-789');
+clearSession('1234567890', 'hopper');
+assert('Ops cleared', getSession('1234567890', 'hopper') === undefined);
+assert('Main unaffected after ops clear', getSession('1234567890', 'ezra') === 'main-session-123');
+assert('Research unaffected after ops clear', getSession('1234567890', 'vera') === 'research-session-789');
 
 // Test 2: Agent-scoped tasks
 console.log('\n--- TEST 2: Agent-scoped tasks ---');
 const ts = Date.now().toString(36);
-createScheduledTask(`bt-main-${ts}`, 'main bot task', '0 9 * * *', 999999999, 'main');
-createScheduledTask(`bt-ops-${ts}`, 'ops agent task', '0 10 * * *', 999999999, 'ops');
-createScheduledTask(`bt-res-${ts}`, 'research task', '0 11 * * *', 999999999, 'research');
+createScheduledTask(`bt-main-${ts}`, 'main bot task', '0 9 * * *', 999999999, 'ezra');
+createScheduledTask(`bt-ops-${ts}`, 'ops agent task', '0 10 * * *', 999999999, 'hopper');
+createScheduledTask(`bt-res-${ts}`, 'research task', '0 11 * * *', 999999999, 'vera');
 
-const opsTasks = getAllScheduledTasks('ops');
-const resTasks = getAllScheduledTasks('research');
+const opsTasks = getAllScheduledTasks('hopper');
+const resTasks = getAllScheduledTasks('vera');
 assert('Ops tasks >= 1', opsTasks.length >= 1);
 assert('Research tasks >= 1', resTasks.length >= 1);
 assert('All tasks >= 3', getAllScheduledTasks().length >= 3);
-assert('Ops tasks only contain ops agent_id', opsTasks.every((t: any) => t.agent_id === 'ops'));
-assert('Research tasks only contain research agent_id', resTasks.every((t: any) => t.agent_id === 'research'));
+assert('Ops tasks only contain ops agent_id', opsTasks.every((t: any) => t.agent_id === 'hopper'));
+assert('Research tasks only contain research agent_id', resTasks.every((t: any) => t.agent_id === 'vera'));
 
 // Test 3: Token usage per agent
 console.log('\n--- TEST 3: Token usage per agent ---');
-saveTokenUsage('1234567890', 'sess1', 1000, 500, 800, 1000, 0.05, false, 'main');
-saveTokenUsage('1234567890', 'sess2', 2000, 1000, 1600, 2000, 0.10, false, 'ops');
-saveTokenUsage('1234567890', 'sess3', 500, 250, 400, 500, 0.02, false, 'research');
+saveTokenUsage('1234567890', 'sess1', 1000, 500, 800, 1000, 0.05, false, 'ezra');
+saveTokenUsage('1234567890', 'sess2', 2000, 1000, 1600, 2000, 0.10, false, 'hopper');
+saveTokenUsage('1234567890', 'sess3', 500, 250, 400, 500, 0.02, false, 'vera');
 
-const mainStats = getAgentTokenStats('main');
-const opsStats = getAgentTokenStats('ops');
-const researchStats = getAgentTokenStats('research');
+const mainStats = getAgentTokenStats('ezra');
+const opsStats = getAgentTokenStats('hopper');
+const researchStats = getAgentTokenStats('vera');
 console.log(`  Main: $${mainStats.todayCost.toFixed(2)} (${mainStats.todayTurns} turns)`);
 console.log(`  Ops: $${opsStats.todayCost.toFixed(2)} (${opsStats.todayTurns} turns)`);
 console.log(`  Research: $${researchStats.todayCost.toFixed(2)} (${researchStats.todayTurns} turns)`);
@@ -65,22 +65,22 @@ assert('Stats isolated (main != ops cost)', mainStats.todayCost !== opsStats.tod
 
 // Test 4: Hive mind
 console.log('\n--- TEST 4: Hive mind ---');
-logToHiveMind('ops', '1234567890', 'scheduled_meeting', 'Booked call with John for Thu 2pm');
-logToHiveMind('research', '1234567890', 'deep_research', 'Analyzed competitor pricing');
-logToHiveMind('ops', '1234567890', 'sent_invoice', 'Invoice #42 to Acme Corp');
+logToHiveMind('hopper', '1234567890', 'scheduled_meeting', 'Booked call with John for Thu 2pm');
+logToHiveMind('vera', '1234567890', 'deep_research', 'Analyzed competitor pricing');
+logToHiveMind('hopper', '1234567890', 'sent_invoice', 'Invoice #42 to Acme Corp');
 
 const allHive = getHiveMindEntries(10);
-const opsHive = getHiveMindEntries(10, 'ops');
+const opsHive = getHiveMindEntries(10, 'hopper');
 assert('All hive entries >= 3', allHive.length >= 3);
 assert('Ops hive >= 2', opsHive.length >= 2);
-assert('Newest entry is ops', allHive[0].agent_id === 'ops');
-assert('Ops hive all have ops agent_id', opsHive.every((e: any) => e.agent_id === 'ops'));
+assert('Newest entry is ops', allHive[0].agent_id === 'hopper');
+assert('Ops hive all have ops agent_id', opsHive.every((e: any) => e.agent_id === 'hopper'));
 
 // Test 5: Conversation log
 console.log('\n--- TEST 5: Conversation log ---');
-logConversationTurn('1234567890', 'user', 'check my calendar', 'sess1', 'ops');
-logConversationTurn('1234567890', 'assistant', 'Here is your calendar...', 'sess1', 'ops');
-logConversationTurn('1234567890', 'user', 'research AI trends', 'sess2', 'research');
+logConversationTurn('1234567890', 'user', 'check my calendar', 'sess1', 'hopper');
+logConversationTurn('1234567890', 'assistant', 'Here is your calendar...', 'sess1', 'hopper');
+logConversationTurn('1234567890', 'user', 'research AI trends', 'sess2', 'vera');
 assert('Conversation logged without error', true);
 
 // Test 6: Backwards compat
