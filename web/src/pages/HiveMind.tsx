@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'preact/hooks';
 import { lazy, Suspense } from 'preact/compat';
-import { Brain as BrainIcon, Box, List as ListIcon } from 'lucide-preact';
+import { Brain as BrainIcon, Box, List as ListIcon, FileText } from 'lucide-preact';
 import { PageHeader, Tab } from '@/components/PageHeader';
 import { PageState } from '@/components/PageState';
 import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { BrainGraph } from '@/components/BrainGraph';
+import { ConceptModal, conceptSlugFromArtifacts } from '@/components/ConceptModal';
 import { useFetch } from '@/lib/useFetch';
 import { formatRelativeTime } from '@/lib/format';
 import { privacyBlur } from '@/lib/privacy';
@@ -52,6 +53,7 @@ export function HiveMind() {
   const [filter, setFilter] = useState<string>('all');
   const [view, setView] = useState<ViewMode>(loadView());
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const [conceptSlug, setConceptSlug] = useState<string | null>(null);
   const agentList = useFetch<{ agents: { id: string }[] }>('/api/agents');
   const path = filter === 'all'
     ? '/api/hive-mind?limit=200'
@@ -138,6 +140,8 @@ export function HiveMind() {
         </Suspense>
       )}
 
+      <ConceptModal slug={conceptSlug} onClose={() => setConceptSlug(null)} />
+
       {entries.length > 0 && effectiveView === 'activity' && (
         <div class="flex-1 overflow-y-auto">
           <table class="w-full text-[12px]">
@@ -161,7 +165,25 @@ export function HiveMind() {
                       {e.agent_id}
                     </span>
                   </td>
-                  <td class="px-3 py-2 font-mono text-[11px] text-[var(--color-text-muted)]">{e.action}</td>
+                  <td class="px-3 py-2 font-mono text-[11px] text-[var(--color-text-muted)]">
+                    <span class="inline-flex items-center gap-1.5">
+                      {e.action}
+                      {(() => {
+                        const slug = conceptSlugFromArtifacts(e.artifacts);
+                        if (!slug) return null;
+                        return (
+                          <button
+                            type="button"
+                            title={`Open vault concept: ${slug}`}
+                            onClick={(ev) => { ev.stopPropagation(); setConceptSlug(slug); }}
+                            class="text-[var(--color-accent)] hover:opacity-80 transition-opacity p-0.5 rounded"
+                          >
+                            <FileText size={12} />
+                          </button>
+                        );
+                      })()}
+                    </span>
+                  </td>
                   <td class="px-3 py-2 text-[var(--color-text)] truncate max-w-0">
                     <span
                       class={[blurOn ? 'privacy-blur' : '', revealed.has(e.id) ? 'revealed' : ''].filter(Boolean).join(' ')}

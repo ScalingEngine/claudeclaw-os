@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { ChevronRight, Search, Pin, Sparkles, X } from 'lucide-preact';
+import { ChevronRight, Search, Pin, Sparkles, X, FileText } from 'lucide-preact';
 import { PageHeader, Tab } from '@/components/PageHeader';
 import { PageState } from '@/components/PageState';
 import { Drawer } from '@/components/Modal';
+import { ConceptModal, conceptSlugFromSource } from '@/components/ConceptModal';
 import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { useFetch } from '@/lib/useFetch';
 import { useDebouncedValue } from '@/lib/useDebounce';
@@ -44,6 +45,7 @@ export function Memories() {
   const [error, setError] = useState<string | null>(null);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [conceptSlug, setConceptSlug] = useState<string | null>(null);
 
   const dq = useDebouncedValue(query, 200);
 
@@ -157,7 +159,13 @@ export function Memories() {
       {filtered.length > 0 && (
         <div class="flex-1 overflow-y-auto">
           {filtered.map((m) => (
-            <MemoryRow key={m.id} memory={m} expanded={expanded.has(m.id)} onToggle={() => toggle(m.id)} />
+            <MemoryRow
+              key={m.id}
+              memory={m}
+              expanded={expanded.has(m.id)}
+              onToggle={() => toggle(m.id)}
+              onOpenConcept={setConceptSlug}
+            />
           ))}
           {!dq && offset < total && (
             <button
@@ -178,6 +186,7 @@ export function Memories() {
       <Drawer open={insightsOpen} onClose={() => setInsightsOpen(false)} title="Memory insights">
         <InsightsDrawer />
       </Drawer>
+      <ConceptModal slug={conceptSlug} onClose={() => setConceptSlug(null)} />
     </div>
   );
 }
@@ -237,7 +246,14 @@ function InsightsDrawer() {
   );
 }
 
-function MemoryRow({ memory, expanded, onToggle }: { memory: Memory; expanded: boolean; onToggle: () => void }) {
+function MemoryRow({
+  memory, expanded, onToggle, onOpenConcept,
+}: {
+  memory: Memory;
+  expanded: boolean;
+  onToggle: () => void;
+  onOpenConcept: (slug: string) => void;
+}) {
   const topics = safeJsonArray<string>(memory.topics);
   const importanceColor =
     memory.importance >= 0.8 ? 'var(--color-priority-high)'
@@ -246,6 +262,7 @@ function MemoryRow({ memory, expanded, onToggle }: { memory: Memory; expanded: b
   const blurOn = privacyBlur('memories').value;
   const [revealed, setRevealed] = useState(false);
   const blurClass = blurOn && !revealed ? 'privacy-blur' : (blurOn && revealed ? 'privacy-blur revealed' : '');
+  const conceptSlug = conceptSlugFromSource(memory.source);
   function clickBlurSpan(ev: MouseEvent) {
     if (!blurOn) return; // let the row click bubble through to expand
     ev.stopPropagation();
@@ -269,6 +286,16 @@ function MemoryRow({ memory, expanded, onToggle }: { memory: Memory; expanded: b
           <div class={'text-[13px] text-[var(--color-text)] leading-snug ' + (expanded ? '' : 'truncate')}>
             <span class={blurClass} onClick={clickBlurSpan}>{memory.summary}</span>
             {memory.pinned === 1 && <Pin size={11} class="inline ml-1.5 text-[var(--color-accent)]" />}
+            {conceptSlug && (
+              <button
+                type="button"
+                title={`Open vault concept: ${conceptSlug}`}
+                onClick={(ev) => { ev.stopPropagation(); onOpenConcept(conceptSlug); }}
+                class="inline-flex align-middle ml-1.5 p-0.5 rounded text-[var(--color-accent)] hover:opacity-80 transition-opacity"
+              >
+                <FileText size={11} />
+              </button>
+            )}
           </div>
           {topics.length > 0 && (
             <div class={'flex flex-wrap items-center gap-1 mt-1.5 ' + blurClass} onClick={clickBlurSpan}>
