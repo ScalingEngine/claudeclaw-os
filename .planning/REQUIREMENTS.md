@@ -42,6 +42,16 @@
 - [x] **OBS-02**: Failed Archon workflow runs report the workflow name, run ID or branch, failing node, and next recovery action.
 - [x] **OBS-03**: Archie and Hopper can inspect active Archon worktrees/runs and clean up stale isolated work safely.
 
+## v1.2 Requirements
+
+### Compaction Recovery / Scratchpad
+
+- [ ] **SCRATCH-01**: Every agent has access to a per-turn working file (scratchpad) at a deterministic path so it can dump findings without inventing one.
+- [ ] **SCRATCH-02**: Persona prompts instruct each agent to append intermediate findings to the scratchpad on a cadence appropriate to its role (research-class agents: every 3 tool calls; draft-class agents: section-by-section outline).
+- [ ] **SCRATCH-03**: After `compact_boundary` fires, the agent re-reads the scratchpad before continuing so research survives compaction.
+- [ ] **SCRATCH-04**: The compaction warning surfaces to the model **before** the empty-reply fallback fires, so it can recover rather than failing silently. Today's warning fires after the reply is sent — correct but useless.
+- [ ] **SCRATCH-05**: Scratchpad files are cleaned up after the turn returns successfully; orphaned files (turn errored, process killed) are aged out by a background sweep.
+
 ## Future Requirements
 
 ### Platform Integration
