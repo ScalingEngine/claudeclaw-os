@@ -12,6 +12,9 @@ import {
   completeMissionTask,
   resetStuckMissionTasks,
   getMissionTask,
+  getDueReminders,
+  markReminderDelivered,
+  createReminder,
 } from './db.js';
 import { logger } from './logger.js';
 import { messageQueue } from './message-queue.js';
@@ -136,6 +139,9 @@ async function runDueTasks(): Promise<void> {
 
   // Also check for queued mission tasks (one-shot async tasks from Mission Control)
   await runDueMissionTasks();
+
+  // Deliver any due reminders (lightweight — no agent, just Telegram message)
+  await deliverDueReminders();
 }
 
 async function runDueMissionTasks(): Promise<void> {
@@ -217,6 +223,31 @@ async function runDueMissionTasks(): Promise<void> {
       runningTaskIds.delete(missionKey);
     }
   });
+}
+
+async function deliverDueReminders(): Promise<void> {
+  const reminders = getDueReminders(schedulerAgentId);
+  if (reminders.length === 0) return;
+
+  logger.info({ count: reminders.length }, 'Delivering due reminders');
+
+  for (const reminder of reminders) {
+    try {
+      await sender(`🔔 Reminder: ${reminder.label}`);
+
+      // Mark delivered and check for recurrence
+      const recurrence = markReminderDelivered(reminder.id);
+      if (recurrence) {
+        const nextDue = computeNextRun(recurrence);
+        const newId = createReminder(reminder.label, nextDue, recurrence, schedulerAgentId);
+        logger.info({ oldId: reminder.id, newId, nextDue }, 'Recurring reminder rescheduled');
+      }
+
+      logger.info({ reminderId: reminder.id, label: reminder.label }, 'Reminder delivered');
+    } catch (err) {
+      logger.error({ err, reminderId: reminder.id }, 'Failed to deliver reminder');
+    }
+  }
 }
 
 export function computeNextRun(cronExpression: string): number {

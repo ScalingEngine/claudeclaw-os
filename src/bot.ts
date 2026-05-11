@@ -31,7 +31,7 @@ import {
   HOURLY_TOKEN_BUDGET,
   PROJECT_ROOT,
 } from './config.js';
-import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
+import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount, createReminder, getPendingReminders, cancelReminder, snoozeReminder, deleteReminder } from './db.js';
 import { logger } from './logger.js';
 import { downloadMedia, buildPhotoMessage, buildDocumentMessage, buildVideoMessage } from './media.js';
 import { buildMemoryContext, evaluateMemoryRelevance, saveConversationTurn, shouldNudgeMemory, MEMORY_NUDGE_TEXT } from './memory.js';
@@ -905,6 +905,7 @@ export function createBot(): Bot {
       '/stop — Stop current processing\n' +
       '/agents — List available agents\n' +
       '/delegate — Delegate task to agent\n' +
+      '/remind — Set or list reminders\n' +
       '/lock — Lock session (PIN required to unlock)\n' +
       '/status — Security status\n\n' +
       'Delegation: @agentId: prompt or /delegate agentId prompt\n\n' +
@@ -1257,6 +1258,111 @@ export function createBot(): Bot {
   // /delegate — delegate task to an agent (handled via handleMessage delegation detection)
   // This command is intercepted by handleMessage's parseDelegation(),
   // but we register it so grammY doesn't pass it to the text handler.
+  // ── /remind — lightweight reminder management ─────────────────────
+  bot.command('remind', async (ctx) => {
+    if (!isAuthorised(ctx.chat!.id)) return;
+    const args = ctx.match?.trim() || '';
+
+    // /remind (no args) — list pending reminders
+    if (!args) {
+      const pending = getPendingReminders(AGENT_ID);
+      if (pending.length === 0) {
+        await ctx.reply('No pending reminders.');
+        return;
+      }
+      const lines = pending.map((r, i) => {
+        const due = new Date(r.due_at * 1000);
+        const recur = r.recurrence ? ` (recurring: ${r.recurrence})` : '';
+        return `${i + 1}. ${r.label}\n   ⏰ ${due.toLocaleString('en-US', { timeZone: 'America/New_York' })}${recur}\n   ID: ${r.id.slice(0, 8)}`;
+      });
+      await ctx.reply('🔔 Pending reminders:\n\n' + lines.join('\n\n'));
+      return;
+    }
+
+    // /remind cancel <id-prefix> — cancel a reminder
+    const cancelMatch = args.match(/^cancel\s+(\S+)/i);
+    if (cancelMatch) {
+      const prefix = cancelMatch[1];
+      const pending = getPendingReminders(AGENT_ID);
+      const match = pending.find((r) => r.id.startsWith(prefix));
+      if (!match) {
+        await ctx.reply(`No pending reminder found starting with "${prefix}".`);
+        return;
+      }
+      cancelReminder(match.id);
+      await ctx.reply(`✅ Cancelled: "${match.label}"`);
+      return;
+    }
+
+    // /remind snooze <id-prefix> <minutes> — snooze a reminder
+    const snoozeMatch = args.match(/^snooze\s+(\S+)\s+(\d+)/i);
+    if (snoozeMatch) {
+      const prefix = snoozeMatch[1];
+      const minutes = parseInt(snoozeMatch[2]);
+      const pending = getPendingReminders(AGENT_ID);
+      const match = pending.find((r) => r.id.startsWith(prefix));
+      if (!match) {
+        await ctx.reply(`No pending reminder found starting with "${prefix}".`);
+        return;
+      }
+      snoozeReminder(match.id, minutes);
+      await ctx.reply(`⏸ Snoozed "${match.label}" for ${minutes} minutes.`);
+      return;
+    }
+
+    // /remind <time> <label> — create a new reminder
+    // Parse common time formats:
+    //   "10m Check emails" → 10 minutes
+    //   "2h Review PR" → 2 hours
+    //   "1d Follow up" → 1 day
+    //   "2025-06-01 09:00 Do thing" → specific datetime
+    const relativeMatch = args.match(/^(\d+)([mhd])\s+(.+)/i);
+    if (relativeMatch) {
+      const amount = parseInt(relativeMatch[1]);
+      const unit = relativeMatch[2].toLowerCase();
+      const label = relativeMatch[3].trim();
+      const nowSec = Math.floor(Date.now() / 1000);
+      let offsetSec = 0;
+      if (unit === 'm') offsetSec = amount * 60;
+      else if (unit === 'h') offsetSec = amount * 3600;
+      else if (unit === 'd') offsetSec = amount * 86400;
+      const dueAt = nowSec + offsetSec;
+      const id = createReminder(label, dueAt, null, AGENT_ID);
+      const dueDate = new Date(dueAt * 1000);
+      await ctx.reply(`✅ Reminder set: "${label}"\n⏰ ${dueDate.toLocaleString('en-US', { timeZone: 'America/New_York' })}\nID: ${id.slice(0, 8)}`);
+      return;
+    }
+
+    // Absolute datetime: "2025-06-01 09:00 Do thing"
+    const absMatch = args.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})\s+(.+)/);
+    if (absMatch) {
+      const dateStr = absMatch[1];
+      const timeStr = absMatch[2];
+      const label = absMatch[3].trim();
+      // Parse as ET
+      const parsed = new Date(`${dateStr}T${timeStr}:00-04:00`); // EDT offset
+      if (isNaN(parsed.getTime())) {
+        await ctx.reply('Could not parse date. Use format: YYYY-MM-DD HH:MM label');
+        return;
+      }
+      const dueAt = Math.floor(parsed.getTime() / 1000);
+      const id = createReminder(label, dueAt, null, AGENT_ID);
+      await ctx.reply(`✅ Reminder set: "${label}"\n⏰ ${parsed.toLocaleString('en-US', { timeZone: 'America/New_York' })}\nID: ${id.slice(0, 8)}`);
+      return;
+    }
+
+    await ctx.reply(
+      '📖 Usage:\n' +
+      '/remind — List pending reminders\n' +
+      '/remind 10m Check emails — In 10 minutes\n' +
+      '/remind 2h Review PR — In 2 hours\n' +
+      '/remind 1d Follow up — In 1 day\n' +
+      '/remind 2025-06-01 09:00 Do thing — Specific date/time (ET)\n' +
+      '/remind cancel <id> — Cancel a reminder\n' +
+      '/remind snooze <id> 30 — Snooze 30 minutes'
+    );
+  });
+
   bot.command('delegate', async (ctx) => {
     if (await replyIfLocked(ctx)) return;
     const args = ctx.match?.trim();
@@ -1274,7 +1380,7 @@ export function createBot(): Bot {
   });
 
   // Text messages — and any slash commands not owned by this bot (skills, e.g. /todo /gmail)
-  const OWN_COMMANDS = new Set(['/start', '/help', '/newchat', '/respin', '/voice', '/model', '/memory', '/forget', '/pin', '/unpin', '/chatid', '/wa', '/slack', '/dashboard', '/stop', '/agents', '/delegate', '/lock', '/status']);
+  const OWN_COMMANDS = new Set(['/start', '/help', '/newchat', '/respin', '/voice', '/model', '/memory', '/forget', '/pin', '/unpin', '/chatid', '/wa', '/slack', '/dashboard', '/stop', '/agents', '/delegate', '/remind', '/lock', '/status']);
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text;
     const chatIdStr = ctx.chat!.id.toString();

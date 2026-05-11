@@ -397,6 +397,19 @@ function createSchema(database: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON skill_usage(skill_id, triggered_at DESC);
 
+    -- Reminders: lightweight time-based notifications delivered via Telegram
+    CREATE TABLE IF NOT EXISTS reminders (
+      id          TEXT PRIMARY KEY,
+      label       TEXT NOT NULL,
+      due_at      INTEGER NOT NULL,
+      recurrence  TEXT,
+      status      TEXT NOT NULL DEFAULT 'pending',
+      agent_id    TEXT NOT NULL DEFAULT 'ezra',
+      created_at  INTEGER NOT NULL,
+      delivered_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(status, due_at);
+
     -- Phase 6.2: Session summaries
     CREATE TABLE IF NOT EXISTS session_summaries (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3065,4 +3078,104 @@ export function pruneAgentFileHistory(
      )`,
   ).run(agentId, fileKind, keep);
   return result.changes;
+}
+
+// ── Reminders ────────────────────────────────────────────────────────
+
+export interface Reminder {
+  id: string;
+  label: string;
+  due_at: number;
+  recurrence: string | null;
+  status: 'pending' | 'delivered' | 'snoozed' | 'cancelled';
+  agent_id: string;
+  created_at: number;
+  delivered_at: number | null;
+}
+
+/** Create a new reminder. `dueAt` is a Unix epoch seconds timestamp.
+ *  `recurrence` is an optional cron expression for recurring reminders. */
+export function createReminder(
+  label: string,
+  dueAt: number,
+  recurrence: string | null = null,
+  agentId: string = MAIN_AGENT_ID,
+): string {
+  const id = crypto.randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(
+    `INSERT INTO reminders (id, label, due_at, recurrence, status, agent_id, created_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+  ).run(id, label, dueAt, recurrence, agentId, now);
+  return id;
+}
+
+/** Get all reminders that are due now (pending + due_at <= now). */
+export function getDueReminders(agentId: string = MAIN_AGENT_ID): Reminder[] {
+  const now = Math.floor(Date.now() / 1000);
+  return db
+    .prepare(
+      `SELECT * FROM reminders WHERE status = 'pending' AND due_at <= ? AND agent_id = ? ORDER BY due_at`,
+    )
+    .all(now, agentId) as Reminder[];
+}
+
+/** Get all reminders for an agent (any status). */
+export function getAllReminders(agentId?: string): Reminder[] {
+  if (agentId) {
+    return db
+      .prepare(`SELECT * FROM reminders WHERE agent_id = ? ORDER BY due_at`)
+      .all(agentId) as Reminder[];
+  }
+  return db.prepare(`SELECT * FROM reminders ORDER BY due_at`).all() as Reminder[];
+}
+
+/** Get only pending (upcoming) reminders for an agent. */
+export function getPendingReminders(agentId: string = MAIN_AGENT_ID): Reminder[] {
+  return db
+    .prepare(
+      `SELECT * FROM reminders WHERE status = 'pending' AND agent_id = ? ORDER BY due_at`,
+    )
+    .all(agentId) as Reminder[];
+}
+
+/** Mark a reminder as delivered. If it has a recurrence cron,
+ *  create the next occurrence automatically and return its ID. */
+export function markReminderDelivered(id: string): string | null {
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(
+    `UPDATE reminders SET status = 'delivered', delivered_at = ? WHERE id = ?`,
+  ).run(now, id);
+
+  // Check for recurrence — if present, schedule the next one
+  const reminder = db.prepare(`SELECT * FROM reminders WHERE id = ?`).get(id) as Reminder | undefined;
+  if (reminder?.recurrence) {
+    // Import cron-parser dynamically is messy; compute next from scheduler util
+    // We'll handle recurrence in scheduler.ts where cron-parser is already imported
+    return reminder.recurrence; // signal to caller that recurrence is needed
+  }
+  return null;
+}
+
+/** Snooze a reminder by pushing its due_at forward by `minutes`. */
+export function snoozeReminder(id: string, minutes: number): void {
+  const newDue = Math.floor(Date.now() / 1000) + minutes * 60;
+  db.prepare(
+    `UPDATE reminders SET due_at = ?, status = 'pending' WHERE id = ?`,
+  ).run(newDue, id);
+}
+
+/** Cancel a reminder (soft delete — keeps the record). */
+export function cancelReminder(id: string): void {
+  db.prepare(`UPDATE reminders SET status = 'cancelled' WHERE id = ?`).run(id);
+}
+
+/** Hard-delete a reminder. */
+export function deleteReminder(id: string): void {
+  db.prepare(`DELETE FROM reminders WHERE id = ?`).run(id);
+}
+
+/** Get a single reminder by ID. */
+export function getReminder(id: string): Reminder | undefined {
+  return db.prepare(`SELECT * FROM reminders WHERE id = ?`).get(id) as Reminder | undefined;
 }
