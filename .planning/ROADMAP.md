@@ -16,7 +16,7 @@ Node.js / TypeScript / SQLite / systemd / Anthropic SDK fluency, plus Archon wor
 
 ## Milestones
 
-### Milestone 1: Fleet Foundation (v1.0) ✓
+### Milestone 1: v1.0 Fleet Foundation ✓
 **Goal:** Six-process fleet on VPS with in-process delegation, working memory extraction, and unified dashboard streaming.
 **Status:** Complete (2026-05-04 session)
 
@@ -31,7 +31,7 @@ Phases:
 - [x] Phase 8: Linear v1 awareness pack install — appended to `~/.claudeclaw/CLAUDE.md` on local + VPS so all personas know `/linear:drop` vs inter-agent tasks, slim 3+3 protocol, prefix conventions
 - [x] Phase 9: Stale role-named agents removed from dashboard — deleted leftover `agents/{code,comms,content,ops,research}/agent.yaml` on VPS, registry now clean
 
-### Milestone 2: Archon Workflow Engine (v1.1)
+### Milestone 2: v1.1 Archon Workflow Engine
 **Goal:** All ClaudeClaw agents can use Archon as the durable workflow engine for coding and business processes while keeping skills/react loops for quick one-off work.
 **Status:** Phase 5 complete; ready for milestone verification
 
@@ -56,7 +56,7 @@ Phases:
   - Wave 1: Plan 01 — Archon workflow visibility, failure reporting, and stale-run cleanup (`05-PLAN.md`).
   - Cross-cutting constraints: workflow events must be visible through live chat/dashboard events or hive_mind activity; failures must include workflow name, run ID or branch, failing node, and recovery action; cleanup must default to dry-run and refuse `/home/devuser/claudeclaw`.
 
-### Milestone 3: Cross-Process Delegation + Polish (v1.2)
+### Milestone 3: v1.2 Cross-Process Delegation + Polish
 **Goal:** Slack delegation works cross-process, specialist personas reply-vs-execute correctly, dead code from Gemini retirement is gone.
 **Status:** Pending
 
@@ -67,7 +67,7 @@ Phases:
 - [ ] Phase 4: Linear awareness pack maintenance — six new `/linear:*` skills landed after the pack was written (`plan-project`, `plan-sprint`, `refine-project`, `evaluate`, `dashboard`, `help`). Update the pack to either include them or explicitly mark them Noah-only.
 - [ ] Phase 5: Auto-route inbound messages — Ezra inspects each incoming message and routes to the right specialist without requiring `@vera:` prefix. Heuristic + LLM-classifier hybrid; falls back to Ezra-handles-it on ambiguity. Depends on the delegation queue and should account for Archon workflow routing.
 
-### Milestone 4: SDK Engine (v2.0)
+### Milestone 4: v2.0 SDK Engine
 **Goal:** Optional `ENGINE=sdk` backend that calls the Anthropic Messages API directly, bypassing the `claude` CLI subprocess. Lower latency, in-process token accounting, direct streaming. CLI engine remains the default.
 **Status:** Pending — RFC drafted (`docs/rfc-sdk-engine.md`)
 
