@@ -12,6 +12,8 @@ function makeUsage(overrides: Partial<UsageInfo> = {}): UsageInfo {
     preCompactTokens: null,
     lastCallCacheRead: 40000,
     lastCallInputTokens: 45000,
+    subtype: 'success',
+    numTurns: 0,
     ...overrides,
   };
 }

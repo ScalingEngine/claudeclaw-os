@@ -30,6 +30,7 @@ import {
   DAILY_COST_BUDGET,
   HOURLY_TOKEN_BUDGET,
   PROJECT_ROOT,
+  AGENT_MAX_TURNS,
 } from './config.js';
 import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
 import { logger } from './logger.js';
@@ -72,6 +73,39 @@ const lastUsage = new Map<string, UsageInfo>();
 const sessionBaseline = new Map<string, number>(); // sessionId -> first turn's input_tokens
 
 /**
+ * Build an honest failure message for the empty-result case.
+ *
+ * The SDK can return an empty/null result.text for several reasons:
+ *   - subtype === 'error_max_turns'      (hit AGENT_MAX_TURNS cap)
+ *   - subtype === 'error_max_budget_usd' (hit budget cap)
+ *   - subtype === 'error_during_execution'
+ *   - context auto-compaction stripped the model's working memory mid-turn,
+ *     leaving it with nothing to report (subtype may still be 'success')
+ *
+ * Historically the bot fabricated the literal string 'Done.' in this case,
+ * which made a serious failure look like a successful no-op completion. This
+ * helper returns a short, actionable message instead. See debug session
+ * archie-compact-silent (2026-05-11) for the full root cause.
+ */
+function formatEmptyReply(usage: UsageInfo | null): string {
+  const reasons: string[] = [];
+  if (usage) {
+    if (usage.subtype && usage.subtype !== 'success') {
+      reasons.push(usage.subtype);
+    }
+    if (usage.didCompact) {
+      reasons.push('hit context compaction');
+    }
+    if (usage.numTurns > 0) {
+      const cap = AGENT_MAX_TURNS > 0 ? `/${AGENT_MAX_TURNS}` : '';
+      reasons.push(`used ${usage.numTurns}${cap} turns`);
+    }
+  }
+  const tail = reasons.length > 0 ? ` (${reasons.join(', ')})` : '';
+  return `I came back empty${tail}. Re-run with /newchat and break the task into smaller pieces.`;
+}
+
+/**
  * Check if context usage is getting high and return a warning string, or null.
  * Uses input_tokens (total context) not cache_read_input_tokens (partial metric).
  */
@@ -79,7 +113,7 @@ function checkContextWarning(chatId: string, sessionId: string | undefined, usag
   lastUsage.set(chatId, usage);
 
   if (usage.didCompact) {
-    return '⚠️ Context window was auto-compacted this turn. Some earlier conversation may have been summarized. Consider /newchat + /respin if things feel off.';
+    return '⚠️ I lost the earlier tool results to context compaction. Re-run with /newchat and break the task into smaller pieces.';
   }
 
   const contextTokens = usage.lastCallInputTokens;
@@ -634,7 +668,7 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
       logger.info({ newSessionId: result.newSessionId }, 'Session saved');
     }
 
-    let rawResponse = result.text?.trim() || 'Done.';
+    let rawResponse = result.text?.trim() || formatEmptyReply(result.usage);
 
     // Exfiltration guard: scan for leaked secrets before sending to Telegram
     if (EXFILTRATION_GUARD_ENABLED) {
@@ -747,7 +781,7 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
         );
         const compactionCount = getCompactionCount(activeSessionId);
         if (compactionCount >= 2) {
-          await ctx.reply('Context compacted multiple times. Consider /newchat to keep response quality high.');
+          await ctx.reply('Context compacted multiple times this session. Start /newchat and split the task into smaller steps before the next reply comes back empty.');
         }
       }
 
@@ -1672,7 +1706,7 @@ async function processDashboardMessage(
       setSession(chatIdStr, result.newSessionId, AGENT_ID);
     }
 
-    const rawResponse = result.text?.trim() || 'Done.';
+    const rawResponse = result.text?.trim() || formatEmptyReply(result.usage);
 
     // Save conversation turn
     saveConversationTurn(chatIdStr, text, rawResponse, result.newSessionId ?? sessionId, AGENT_ID);
