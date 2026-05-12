@@ -44,6 +44,12 @@
 
 ## v1.2 Requirements
 
+### Timeout Salvage
+
+- [ ] **SALVAGE-01**: When `AGENT_TIMEOUT_MS` fires mid-turn, the wrapper captures `tool_result` blocks for any Task subagents that completed before the abort, and includes their content in the user-facing timeout reply.
+- [ ] **SALVAGE-02**: When `AGENT_TIMEOUT_MS` fires mid-turn, the wrapper reads the per-turn scratchpad file (if present) and includes its contents in the user-facing timeout reply.
+- [ ] **SALVAGE-03**: The timeout reply degrades gracefully: when no subagent results AND no scratchpad AND no partial assistant text are available, fall back to today's static "Timed out after 900s…" message.
+
 ### Compaction Recovery / Scratchpad
 
 - [ ] **SCRATCH-01**: Every agent has access to a per-turn working file (scratchpad) at a deterministic path so it can dump findings without inventing one.
