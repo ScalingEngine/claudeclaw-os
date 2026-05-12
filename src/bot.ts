@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import { Api, Bot, Context, InputFile, RawApi } from 'grammy';
 
-import { runAgent, runAgentWithRetry, UsageInfo, AgentProgressEvent } from './agent.js';
+import { runAgent, runAgentWithRetry, UsageInfo, AgentProgressEvent, AgentResult, SubagentResult } from './agent.js';
 import { AgentError } from './errors.js';
 import {
   AGENT_ID,
@@ -35,7 +35,7 @@ import {
 import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
 import { logger } from './logger.js';
 import { downloadMedia, buildPhotoMessage, buildDocumentMessage, buildVideoMessage } from './media.js';
-import { createScratchpad, deleteScratchpad } from './scratchpad.js';
+import { createScratchpad, deleteScratchpad, readScratchpad } from './scratchpad.js';
 import { buildMemoryContext, evaluateMemoryRelevance, saveConversationTurn, shouldNudgeMemory, MEMORY_NUDGE_TEXT } from './memory.js';
 import { classifyMessageComplexity } from './message-classifier.js';
 import { scanForSecrets, redactSecrets } from './exfiltration-guard.js';
@@ -151,6 +151,64 @@ function formatEmptyReply(usage: UsageInfo | null): string {
   }
   const tail = reasons.length > 0 ? ` (${reasons.join(', ')})` : '';
   return `I came back empty${tail}. Re-run with /newchat and break the task into smaller pieces.`;
+}
+
+/**
+ * Build a salvage-aware timeout reply.
+ *
+ * Concatenates three sources in CONTEXT-locked precedence order — completed
+ * Task subagent reports, scratchpad contents, partial assistant text —
+ * with a one-line recovery footer. When all three sources are empty,
+ * returns `fallbackMessage` BYTE-IDENTICAL to today's UX (SALVAGE-03).
+ *
+ * Pure function aside from `readScratchpad`'s best-effort file read.
+ * No side effects, no logging, no network. Length-policing (splitMessage
+ * for Telegram) is the caller's concern.
+ */
+export function formatTimeoutReply(
+  result: AgentResult,
+  scratchpadPath: string | null,
+  fallbackMessage: string,
+): string {
+  const subagents: SubagentResult[] = result.subagentResults ?? [];
+  const scratchpadBody = readScratchpad(scratchpadPath);
+  const partialText = (result.text ?? '').trim();
+
+  const hasSubagents = subagents.length > 0;
+  const hasScratchpad = scratchpadBody !== null && scratchpadBody.length > 0;
+  const hasPartialText = partialText.length > 0;
+
+  if (!hasSubagents && !hasScratchpad && !hasPartialText) {
+    return fallbackMessage;
+  }
+
+  const sections: string[] = [];
+
+  if (hasSubagents) {
+    for (const sub of subagents) {
+      const errMark = sub.isError ? ' (error)' : '';
+      sections.push(`## Subagent: ${sub.toolName}${errMark}\n${sub.content}`);
+    }
+  }
+
+  if (hasScratchpad) {
+    sections.push(`## Scratchpad\n${scratchpadBody}`);
+  }
+
+  if (hasPartialText) {
+    sections.push(`## Partial work\n${partialText}`);
+  }
+
+  const timeoutSec = Math.round(AGENT_TIMEOUT_MS / 1000);
+  const turnsClause =
+    result.usage && result.usage.numTurns > 0
+      ? `, ${result.usage.numTurns} turn(s) consumed`
+      : '';
+  const footer =
+    `---\nTimed out after ${timeoutSec}s. ` +
+    `Recovered ${subagents.length} subagent result(s)${turnsClause}.`;
+
+  return [...sections, footer].join('\n\n');
 }
 
 /**
@@ -717,11 +775,17 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     // Handle abort (manual /stop or timeout)
     if (result.aborted) {
       setProcessing(chatIdStr, false);
+      const telegramTimeoutFallback = `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. The task may have been too complex or a command got stuck. Try breaking it into smaller steps.`;
       const msg = result.text === null
-        ? `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. The task may have been too complex or a command got stuck. Try breaking it into smaller steps.`
+        ? formatTimeoutReply(result, scratchpadPath, telegramTimeoutFallback)
         : 'Stopped.';
+      // Emit one dashboard event with the full unsplit reply — dashboards
+      // have no 4096-char limit. Telegram messages are then chunked via
+      // splitMessage to respect the per-message ceiling.
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'telegram' });
-      await ctx.reply(msg);
+      for (const part of splitMessage(msg)) {
+        await ctx.reply(part);
+      }
       return;
     }
 
@@ -1808,8 +1872,9 @@ async function processDashboardMessage(
 
     // Handle abort
     if (result.aborted) {
+      const dashboardTimeoutFallback = `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. Try breaking the task into smaller steps.`;
       const msg = result.text === null
-        ? `Timed out after ${Math.round(AGENT_TIMEOUT_MS / 1000)}s. Try breaking the task into smaller steps.`
+        ? formatTimeoutReply(result, scratchpadPath, dashboardTimeoutFallback)
         : 'Stopped.';
       emitChatEvent({ type: 'assistant_message', chatId: chatIdStr, content: msg, source: 'dashboard' });
       return;

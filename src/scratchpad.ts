@@ -56,6 +56,30 @@ export function deleteScratchpad(file: string): void {
 }
 
 /**
+ * Best-effort read of a scratchpad file's body (header stripped, trimmed).
+ *
+ * Returns `null` for: null/undefined/empty path, missing file, unreadable
+ * file, header-only file, or whitespace-only file. Never throws — mirrors
+ * `deleteScratchpad`'s posture so callers in bot.ts can chain without
+ * try/catch. Used by Phase 7's `formatTimeoutReply` to salvage on-disk
+ * findings when a wall-clock timeout fires.
+ */
+export function readScratchpad(file: string | null | undefined): string | null {
+  if (!file) return null;
+  let raw: string;
+  try {
+    raw = fs.readFileSync(file, 'utf-8');
+  } catch {
+    return null;
+  }
+  // Strip the leading "# Scratchpad for …" header line written by
+  // createScratchpad. The header is followed by a blank line; the regex
+  // also eats any consecutive trailing newlines so the body starts cleanly.
+  const body = raw.replace(/^# Scratchpad for [^\n]*\n+/, '').trim();
+  return body.length > 0 ? body : null;
+}
+
+/**
  * Delete scratchpad files older than maxAgeMs (default 24h).
  * Copy of src/media.ts:cleanupOldUploads, retargeted to SCRATCH_DIR.
  */
