@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { splitMessage, extractFileMarkers } from './bot.js';
+import { describe, it, expect, vi } from 'vitest';
+import { splitMessage, extractFileMarkers, recoverFromCompactionIfNeeded } from './bot.js';
+import type { UsageInfo } from './agent.js';
 
 describe('splitMessage', () => {
   it('returns single-element array for short messages', () => {
@@ -249,5 +250,105 @@ describe('extractFileMarkers', () => {
     expect(result.text).toContain('Line 1');
     expect(result.text).toContain('Line 2');
     expect(result.text).toContain('Line 3');
+  });
+});
+
+// ─── recoverFromCompactionIfNeeded ────────────────────────────────────
+//
+// Plan 06-03: when result.usage.didCompact && result.text is empty, fire ONE
+// continuation prompt that names the scratchpad path so the model can Read
+// its prior findings. Hard cap of 1 retry — the helper has no loop.
+
+function makeUsage(opts: { didCompact: boolean }): UsageInfo {
+  return {
+    inputTokens: 100,
+    outputTokens: 50,
+    cacheReadInputTokens: 0,
+    totalCostUsd: 0.01,
+    didCompact: opts.didCompact,
+    preCompactTokens: opts.didCompact ? 80_000 : null,
+    lastCallCacheRead: 0,
+    lastCallInputTokens: 100,
+    subtype: 'success',
+    numTurns: 5,
+  };
+}
+
+describe('recoverFromCompactionIfNeeded', () => {
+  it('retries once with the scratchpad path when compacted+empty, returns recovered text', async () => {
+    const scratchpad = '/tmp/scratch/vera-12345-1234.md';
+    const initial = {
+      text: '',
+      newSessionId: 'sess-abc',
+      usage: makeUsage({ didCompact: true }),
+    };
+    const rerun = vi.fn(async (msg: string, sid: string | undefined) => {
+      // Sanity-check the continuation prompt: it must name the scratchpad
+      // path explicitly and tell the model to Read it.
+      expect(msg).toContain(scratchpad);
+      expect(msg).toMatch(/Read .* using the Read tool/);
+      expect(sid).toBe('sess-abc');
+      return {
+        text: 'Here are the GHL endpoints I found: /workflows, /contacts...',
+        newSessionId: 'sess-abc',
+        usage: makeUsage({ didCompact: false }),
+      };
+    });
+
+    const out = await recoverFromCompactionIfNeeded(initial, scratchpad, rerun);
+
+    expect(rerun).toHaveBeenCalledTimes(1);
+    expect(out.text).toContain('GHL endpoints');
+    // The recovered text replaces the empty initial text — caller picks it up
+    // via formatEmptyReply short-circuit.
+  });
+
+  it('does NOT call rerun a third time if the recovery turn also returns empty', async () => {
+    const scratchpad = '/tmp/scratch/archie-99-2222.md';
+    const initial = {
+      text: null,
+      newSessionId: 'sess-xyz',
+      usage: makeUsage({ didCompact: true }),
+    };
+    const rerun = vi.fn(async () => ({
+      text: '',
+      newSessionId: 'sess-xyz',
+      usage: makeUsage({ didCompact: false }),
+    }));
+
+    const out = await recoverFromCompactionIfNeeded(initial, scratchpad, rerun);
+
+    expect(rerun).toHaveBeenCalledTimes(1);
+    expect(out.text).toBe('');
+    // Caller's formatEmptyReply will fire downstream — this helper is one-shot.
+  });
+
+  it('short-circuits on a non-compaction empty reply (no retry burned)', async () => {
+    const scratchpad = '/tmp/scratch/cole-7-3333.md';
+    const initial = {
+      text: '',
+      newSessionId: 'sess-foo',
+      usage: makeUsage({ didCompact: false }), // <- not compacted
+    };
+    const rerun = vi.fn(async () => {
+      throw new Error('rerun should not be called');
+    });
+
+    const out = await recoverFromCompactionIfNeeded(initial, scratchpad, rerun);
+
+    expect(rerun).not.toHaveBeenCalled();
+    expect(out).toBe(initial); // short-circuit returns the same reference
+  });
+
+  it('short-circuits when result.text is non-empty even if compaction fired', async () => {
+    const initial = {
+      text: 'real findings here',
+      newSessionId: 'sess-bar',
+      usage: makeUsage({ didCompact: true }),
+    };
+    const rerun = vi.fn();
+    const out = await recoverFromCompactionIfNeeded(initial, '/tmp/x.md', rerun);
+    expect(rerun).not.toHaveBeenCalled();
+    expect(out).toBe(initial);
   });
 });

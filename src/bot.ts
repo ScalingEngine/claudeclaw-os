@@ -88,6 +88,53 @@ const sessionBaseline = new Map<string, number>(); // sessionId -> first turn's 
  * helper returns a short, actionable message instead. See debug session
  * archie-compact-silent (2026-05-11) for the full root cause.
  */
+/**
+ * Result shape returned by runAgent (subset — keep this aligned with AgentResult).
+ * Re-declaring the minimum surface here keeps the helper testable without
+ * pulling in the full SDK boundary.
+ */
+interface CompactionRecoverable {
+  text: string | null;
+  newSessionId: string | undefined;
+  usage: UsageInfo | null;
+  aborted?: boolean;
+}
+
+/**
+ * If the last turn auto-compacted AND came back empty, fire ONE continuation
+ * prompt at the same sessionId that names the scratchpad path and tells the
+ * model to Read it. Hard cap of 1 retry — no loop. If the retry also returns
+ * empty, the caller's downstream formatEmptyReply runs honestly.
+ *
+ * Bypasses runAgentWithRetry deliberately: that harness handles transient
+ * SDK errors with backoff/model-switch, which is the wrong semantics here.
+ * Compaction recovery is one-shot.
+ *
+ * Exported for unit testing (Plan 06-03 Task 3.2).
+ */
+export async function recoverFromCompactionIfNeeded(
+  result: CompactionRecoverable,
+  scratchpadPath: string,
+  rerun: (continuationMsg: string, sessionId: string | undefined) => Promise<CompactionRecoverable>,
+): Promise<CompactionRecoverable> {
+  const isEmpty = !result.text || result.text.trim() === '';
+  const compacted = !!result.usage?.didCompact;
+  if (!isEmpty || !compacted) return result;
+
+  const sessionId = result.newSessionId;
+  const continuation =
+    `[Scratchpad — recover findings after context compaction]\n` +
+    `Your context just auto-compacted and your prior research was summarized away. ` +
+    `Read ${scratchpadPath} now using the Read tool, then re-emit your findings ` +
+    `to the user. Do not say "Done." — produce the actual findings from the scratchpad.\n` +
+    `[End scratchpad]`;
+  logger.warn(
+    { scratchpadPath, sessionId },
+    'Compaction-recovery retry firing',
+  );
+  return rerun(continuation, sessionId);
+}
+
 function formatEmptyReply(usage: UsageInfo | null): string {
   const reasons: string[] = [];
   if (usage) {
@@ -681,6 +728,39 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     if (result.newSessionId) {
       setSession(chatIdStr, result.newSessionId, AGENT_ID);
       logger.info({ newSessionId: result.newSessionId }, 'Session saved');
+    }
+
+    // Compaction recovery: if the SDK compacted mid-turn AND came back empty,
+    // re-run once with a continuation prompt that names the scratchpad. Bypass
+    // runAgentWithRetry — different semantics (one-shot, not transient retry).
+    const recovered = await recoverFromCompactionIfNeeded(
+      result,
+      scratchpadPath,
+      (msg, sid) => runAgent(
+        msg,
+        sid,
+        () => void sendTyping(ctx.api, chatId),
+        onProgress,
+        effectiveModel,
+        abortCtrl,
+        onStreamText,
+        agentMcpAllowlist,
+      ),
+    );
+    // Merge: keep the original result for ALL bookkeeping (session id, usage,
+    // compaction tracking) — the recovery turn may not have a fresh session id.
+    // Only the user-facing text is replaced.
+    if (recovered !== result) {
+      result.text = recovered.text;
+      // Preserve recovered usage if present so cost/turn footers reflect the
+      // additional turn the recovery consumed.
+      if (recovered.usage) {
+        result.usage = recovered.usage;
+      }
+      if (recovered.newSessionId) {
+        result.newSessionId = recovered.newSessionId;
+        setSession(chatIdStr, recovered.newSessionId, AGENT_ID);
+      }
     }
 
     let rawResponse = result.text?.trim() || formatEmptyReply(result.usage);
@@ -1737,6 +1817,32 @@ async function processDashboardMessage(
 
     if (result.newSessionId) {
       setSession(chatIdStr, result.newSessionId, AGENT_ID);
+    }
+
+    // Compaction recovery (dashboard path) — see Telegram path for rationale.
+    const recovered = await recoverFromCompactionIfNeeded(
+      result,
+      scratchpadPath,
+      (msg, sid) => runAgent(
+        msg,
+        sid,
+        () => {}, // no typing for dashboard
+        onProgress,
+        agentDefaultModel,
+        abortCtrl,
+        undefined, // no streaming
+        agentMcpAllowlist,
+      ),
+    );
+    if (recovered !== result) {
+      result.text = recovered.text;
+      if (recovered.usage) {
+        result.usage = recovered.usage;
+      }
+      if (recovered.newSessionId) {
+        result.newSessionId = recovered.newSessionId;
+        setSession(chatIdStr, recovered.newSessionId, AGENT_ID);
+      }
     }
 
     const rawResponse = result.text?.trim() || formatEmptyReply(result.usage);

@@ -119,16 +119,18 @@ describe('scratchpad module', () => {
     expect(() => deleteScratchpad(file)).not.toThrow();
   });
 
-  it('cleanupOldScratchpads(0) deletes everything; missing dir returns silently', () => {
+  it('cleanupOldScratchpads with negative maxAge deletes everything; missing dir returns silently', () => {
     createScratchpad('vera', '1');
     createScratchpad('archie', '2');
     expect(fs.readdirSync(SCRATCH_DIR).length).toBe(2);
-    cleanupOldScratchpads(0);
+    // Use -1 so `now - mtimeMs > -1` is true even when mtime == now (just-created
+    // files on coarse-resolution clocks). The real default of 24h is never racy.
+    cleanupOldScratchpads(-1);
     expect(fs.readdirSync(SCRATCH_DIR).length).toBe(0);
 
     // Now nuke the dir entirely and verify the function still returns silently.
     fs.rmSync(SCRATCH_DIR, { recursive: true, force: true });
-    expect(() => cleanupOldScratchpads(0)).not.toThrow();
+    expect(() => cleanupOldScratchpads(-1)).not.toThrow();
   });
 
   it('cleanupOldScratchpads(60_000) keeps fresh files but deletes stale ones', () => {
