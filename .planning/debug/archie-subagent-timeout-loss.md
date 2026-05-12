@@ -14,6 +14,58 @@ created: 2026-05-12
 updated: 2026-05-12
 ---
 
+## UPDATE 2026-05-12 14:14 — REAL-WORLD CAPTURE (clean repro)
+
+After rebooting the VPS (which cleared a pre-existing `google-workspace-mcp`
+runaway that had pinned the box at 100% CPU since the previous afternoon),
+Noah re-sent the original GHL reverse-engineering prompt to Archie on a
+healthy box. Same failure mode — but THIS time the scratchpad work shipped
+in `e409dbf..1810d2b` was live, and we now have hard evidence the recovery
+path is the missing piece.
+
+**Tool-call timeline visible in Telegram:**
+- 10:05 ET — Reading file
+- 10:06–10:08 — Fetching pages (multiple)
+- 10:09 — Writing file (this is Archie writing to its scratchpad per the
+  new research-class persona rule "append findings every 3 tool calls")
+- 10:09 — Task… (spawned subagent)
+- 10:10–10:13 — More fetches, commands, Task tool use
+- 10:14 — `Timed out after 900s. The task may have been too complex or a
+  command got stuck. Try breaking it into smaller steps.` (bot.ts:721,
+  unchanged static message)
+
+**Scratchpad on disk after the kill:**
+`~/.claudeclaw/scratch/archie-5005645513-1778594387139.md` — 2730 bytes,
+preserved per design (not deleted on the abort path). Contents include:
+- Confirmed base URLs (V2 services.leadconnectorhq.com, V1 rest.gohighlevel.com EOL Dec 2025)
+- Auth scheme (Bearer JWT + `Version: 2021-07-28` header + locationId)
+- Three confirmed endpoint paths (GET `/workflows/`, PUT change-status,
+  POST marketplace trigger execute)
+- Trigger subscription payload JSON shape
+- Rate limit (100 req / 10s per resource)
+- Required scopes (`workflows.readonly`)
+- Sources checked with URLs
+- A "next: need to find" list
+
+**Implication for this debug map:**
+The hypothesis is no longer theoretical. We have a captured, in-the-wild
+instance of:
+1. The scratchpad system working as designed (persona rule fired,
+   findings persisted to disk, file survived the abort)
+2. The wrapper failing to surface those findings on timeout (`bot.ts:721`
+   emits the static message)
+3. The cost: ~90% of a useful research task delivered as 2.7KB of
+   findings on disk, while the user sees only "Timed out after 900s"
+
+The c557005 / SCRATCH-TIMEOUT-* phase is now justified by concrete
+evidence, not just code-path analysis. The fix is exactly as scoped:
+`formatTimeoutReply(result, scratchpadPath)` reads the file (when
+present) and concatenates it with subagent results into the Telegram
+message, falling back to today's static text only when all sources
+are empty.
+
+
+
 # Debug Session: archie-subagent-timeout-loss
 
 ## Symptoms
