@@ -10,6 +10,7 @@ import { initDatabase, cleanupOldMissionTasks, insertAuditLog } from './db.js';
 import { initSecurity, setAuditCallback } from './security.js';
 import { logger } from './logger.js';
 import { cleanupOldUploads } from './media.js';
+import { cleanupOldScratchpads } from './scratchpad.js';
 import { runConsolidation } from './memory-consolidate.js';
 import { runDecaySweep } from './memory.js';
 import { runWarroomAvatarMigration } from './avatars.js';
@@ -204,6 +205,11 @@ async function main(): Promise<void> {
   }
 
   cleanupOldUploads();
+  // Per-process startup sweep: each agent process owns its own scratchpads
+  // (filename includes agentId), so no cross-process race. 24h TTL inherited
+  // from cleanupOldScratchpads default. Cheap insurance against process kills
+  // mid-turn.
+  cleanupOldScratchpads();
 
   const bot = createBot();
 

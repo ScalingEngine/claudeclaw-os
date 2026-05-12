@@ -8,6 +8,7 @@ import { PROJECT_ROOT } from './config.js';
 import { logToHiveMind, createInterAgentTask, completeInterAgentTask } from './db.js';
 import { logger } from './logger.js';
 import { buildMemoryContext } from './memory.js';
+import { createScratchpad, deleteScratchpad } from './scratchpad.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -193,6 +194,19 @@ export async function delegateToAgent(
     if (memCtx) {
       contextParts.push(memCtx);
     }
+
+    // Per-turn scratchpad for the delegated agent. Use the taskId as the chat
+    // surrogate so the filename is unique across concurrent delegations.
+    // Lifecycle is owned here (caller layer) — same posture as bot.ts.
+    const scratchpadPath = createScratchpad(agentId, `delegation-${taskId}`);
+    contextParts.push(
+      `[Scratchpad — append findings here so they survive context compaction]\n` +
+      `Your scratchpad for this turn is ${scratchpadPath}.\n` +
+      `Use the Write tool to append findings as you go. After context compaction\n` +
+      `fires, Read this file before continuing so your prior research survives.\n` +
+      `[End scratchpad]`,
+    );
+
     contextParts.push(prompt);
     const fullPrompt = contextParts.join('\n\n');
 
@@ -227,6 +241,12 @@ export async function delegateToAgent(
         `${agent.name} completed (${Math.round(durationMs / 1000)}s)`,
       );
 
+      // Delete the scratchpad only on a clean success. Non-success leaves
+      // the file for the startup sweep.
+      if (result.usage?.subtype === 'success') {
+        deleteScratchpad(scratchpadPath);
+      }
+
       return {
         agentId,
         text: result.text,
@@ -236,6 +256,7 @@ export async function delegateToAgent(
       };
     } catch (innerErr) {
       clearTimeout(timer);
+      // Intentional: scratchpadPath stays on error — sweep handles it.
       throw innerErr;
     }
   } catch (err) {

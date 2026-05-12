@@ -30,10 +30,12 @@ import {
   DAILY_COST_BUDGET,
   HOURLY_TOKEN_BUDGET,
   PROJECT_ROOT,
+  AGENT_MAX_TURNS,
 } from './config.js';
 import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
 import { logger } from './logger.js';
 import { downloadMedia, buildPhotoMessage, buildDocumentMessage, buildVideoMessage } from './media.js';
+import { createScratchpad, deleteScratchpad } from './scratchpad.js';
 import { buildMemoryContext, evaluateMemoryRelevance, saveConversationTurn, shouldNudgeMemory, MEMORY_NUDGE_TEXT } from './memory.js';
 import { classifyMessageComplexity } from './message-classifier.js';
 import { scanForSecrets, redactSecrets } from './exfiltration-guard.js';
@@ -72,6 +74,86 @@ const lastUsage = new Map<string, UsageInfo>();
 const sessionBaseline = new Map<string, number>(); // sessionId -> first turn's input_tokens
 
 /**
+ * Build an honest failure message for the empty-result case.
+ *
+ * The SDK can return an empty/null result.text for several reasons:
+ *   - subtype === 'error_max_turns'      (hit AGENT_MAX_TURNS cap)
+ *   - subtype === 'error_max_budget_usd' (hit budget cap)
+ *   - subtype === 'error_during_execution'
+ *   - context auto-compaction stripped the model's working memory mid-turn,
+ *     leaving it with nothing to report (subtype may still be 'success')
+ *
+ * Historically the bot fabricated the literal string 'Done.' in this case,
+ * which made a serious failure look like a successful no-op completion. This
+ * helper returns a short, actionable message instead. See debug session
+ * archie-compact-silent (2026-05-11) for the full root cause.
+ */
+/**
+ * Result shape returned by runAgent (subset — keep this aligned with AgentResult).
+ * Re-declaring the minimum surface here keeps the helper testable without
+ * pulling in the full SDK boundary.
+ */
+interface CompactionRecoverable {
+  text: string | null;
+  newSessionId: string | undefined;
+  usage: UsageInfo | null;
+  aborted?: boolean;
+}
+
+/**
+ * If the last turn auto-compacted AND came back empty, fire ONE continuation
+ * prompt at the same sessionId that names the scratchpad path and tells the
+ * model to Read it. Hard cap of 1 retry — no loop. If the retry also returns
+ * empty, the caller's downstream formatEmptyReply runs honestly.
+ *
+ * Bypasses runAgentWithRetry deliberately: that harness handles transient
+ * SDK errors with backoff/model-switch, which is the wrong semantics here.
+ * Compaction recovery is one-shot.
+ *
+ * Exported for unit testing (Plan 06-03 Task 3.2).
+ */
+export async function recoverFromCompactionIfNeeded(
+  result: CompactionRecoverable,
+  scratchpadPath: string,
+  rerun: (continuationMsg: string, sessionId: string | undefined) => Promise<CompactionRecoverable>,
+): Promise<CompactionRecoverable> {
+  const isEmpty = !result.text || result.text.trim() === '';
+  const compacted = !!result.usage?.didCompact;
+  if (!isEmpty || !compacted) return result;
+
+  const sessionId = result.newSessionId;
+  const continuation =
+    `[Scratchpad — recover findings after context compaction]\n` +
+    `Your context just auto-compacted and your prior research was summarized away. ` +
+    `Read ${scratchpadPath} now using the Read tool, then re-emit your findings ` +
+    `to the user. Do not say "Done." — produce the actual findings from the scratchpad.\n` +
+    `[End scratchpad]`;
+  logger.warn(
+    { scratchpadPath, sessionId },
+    'Compaction-recovery retry firing',
+  );
+  return rerun(continuation, sessionId);
+}
+
+function formatEmptyReply(usage: UsageInfo | null): string {
+  const reasons: string[] = [];
+  if (usage) {
+    if (usage.subtype && usage.subtype !== 'success') {
+      reasons.push(usage.subtype);
+    }
+    if (usage.didCompact) {
+      reasons.push('hit context compaction');
+    }
+    if (usage.numTurns > 0) {
+      const cap = AGENT_MAX_TURNS > 0 ? `/${AGENT_MAX_TURNS}` : '';
+      reasons.push(`used ${usage.numTurns}${cap} turns`);
+    }
+  }
+  const tail = reasons.length > 0 ? ` (${reasons.join(', ')})` : '';
+  return `I came back empty${tail}. Re-run with /newchat and break the task into smaller pieces.`;
+}
+
+/**
  * Check if context usage is getting high and return a warning string, or null.
  * Uses input_tokens (total context) not cache_read_input_tokens (partial metric).
  */
@@ -79,7 +161,7 @@ function checkContextWarning(chatId: string, sessionId: string | undefined, usag
   lastUsage.set(chatId, usage);
 
   if (usage.didCompact) {
-    return '⚠️ Context window was auto-compacted this turn. Some earlier conversation may have been summarized. Consider /newchat + /respin if things feel off.';
+    return '⚠️ I lost the earlier tool results to context compaction. Re-run with /newchat and break the task into smaller pieces.';
   }
 
   const contextTokens = usage.lastCallInputTokens;
@@ -508,6 +590,20 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     parts.push(MEMORY_NUDGE_TEXT);
   }
 
+  // Per-turn scratchpad: deterministic working file the model can Write/Read
+  // across context auto-compaction. Lifecycle is owned by the caller (this
+  // function) — see try/finally around runAgentWithRetry below. The path is
+  // captured outside the try so Plan 06-03's retry-after-compaction helper
+  // can re-inject it.
+  const scratchpadPath = createScratchpad(AGENT_ID, chatIdStr);
+  parts.push(
+    `[Scratchpad — append findings here so they survive context compaction]\n` +
+    `Your scratchpad for this turn is ${scratchpadPath}.\n` +
+    `Use the Write tool to append findings as you go. After context compaction\n` +
+    `fires, Read this file before continuing so your prior research survives.\n` +
+    `[End scratchpad]`,
+  );
+
   parts.push(message);
   const fullMessage = parts.join('\n\n');
 
@@ -634,7 +730,40 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
       logger.info({ newSessionId: result.newSessionId }, 'Session saved');
     }
 
-    let rawResponse = result.text?.trim() || 'Done.';
+    // Compaction recovery: if the SDK compacted mid-turn AND came back empty,
+    // re-run once with a continuation prompt that names the scratchpad. Bypass
+    // runAgentWithRetry — different semantics (one-shot, not transient retry).
+    const recovered = await recoverFromCompactionIfNeeded(
+      result,
+      scratchpadPath,
+      (msg, sid) => runAgent(
+        msg,
+        sid,
+        () => void sendTyping(ctx.api, chatId),
+        onProgress,
+        effectiveModel,
+        abortCtrl,
+        onStreamText,
+        agentMcpAllowlist,
+      ),
+    );
+    // Merge: keep the original result for ALL bookkeeping (session id, usage,
+    // compaction tracking) — the recovery turn may not have a fresh session id.
+    // Only the user-facing text is replaced.
+    if (recovered !== result) {
+      result.text = recovered.text;
+      // Preserve recovered usage if present so cost/turn footers reflect the
+      // additional turn the recovery consumed.
+      if (recovered.usage) {
+        result.usage = recovered.usage;
+      }
+      if (recovered.newSessionId) {
+        result.newSessionId = recovered.newSessionId;
+        setSession(chatIdStr, recovered.newSessionId, AGENT_ID);
+      }
+    }
+
+    let rawResponse = result.text?.trim() || formatEmptyReply(result.usage);
 
     // Exfiltration guard: scan for leaked secrets before sending to Telegram
     if (EXFILTRATION_GUARD_ENABLED) {
@@ -747,7 +876,7 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
         );
         const compactionCount = getCompactionCount(activeSessionId);
         if (compactionCount >= 2) {
-          await ctx.reply('Context compacted multiple times. Consider /newchat to keep response quality high.');
+          await ctx.reply('Context compacted multiple times this session. Start /newchat and split the task into smaller steps before the next reply comes back empty.');
         }
       }
 
@@ -763,11 +892,19 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
       }
     }
 
+    // Delete the scratchpad only on a clean success. Any non-success subtype,
+    // abort, or error path leaves the file in place so the startup sweep
+    // (cleanupOldScratchpads) can age it out OR the next turn can recover it.
+    if (result.usage?.subtype === 'success') {
+      deleteScratchpad(scratchpadPath);
+    }
+
     setProcessing(chatIdStr, false);
   } catch (err) {
     clearInterval(typingInterval);
     setActiveAbort(chatIdStr, null);
     setProcessing(chatIdStr, false);
+    // Intentional: do NOT delete scratchpadPath on error. Sweep handles it.
 
     if (err instanceof AgentError) {
       logger.error(
@@ -1631,6 +1768,16 @@ async function processDashboardMessage(
       dashParts.push(`[Recent scheduled task context — the user may be replying to this]\n${taskLines.join('\n\n')}\n[End task context]`);
     }
 
+    // Per-turn scratchpad (dashboard path — same lifecycle as Telegram path above).
+    const scratchpadPath = createScratchpad(AGENT_ID, chatIdStr);
+    dashParts.push(
+      `[Scratchpad — append findings here so they survive context compaction]\n` +
+      `Your scratchpad for this turn is ${scratchpadPath}.\n` +
+      `Use the Write tool to append findings as you go. After context compaction\n` +
+      `fires, Read this file before continuing so your prior research survives.\n` +
+      `[End scratchpad]`,
+    );
+
     dashParts.push(text);
     const fullMessage = dashParts.join('\n\n');
 
@@ -1672,7 +1819,33 @@ async function processDashboardMessage(
       setSession(chatIdStr, result.newSessionId, AGENT_ID);
     }
 
-    const rawResponse = result.text?.trim() || 'Done.';
+    // Compaction recovery (dashboard path) — see Telegram path for rationale.
+    const recovered = await recoverFromCompactionIfNeeded(
+      result,
+      scratchpadPath,
+      (msg, sid) => runAgent(
+        msg,
+        sid,
+        () => {}, // no typing for dashboard
+        onProgress,
+        agentDefaultModel,
+        abortCtrl,
+        undefined, // no streaming
+        agentMcpAllowlist,
+      ),
+    );
+    if (recovered !== result) {
+      result.text = recovered.text;
+      if (recovered.usage) {
+        result.usage = recovered.usage;
+      }
+      if (recovered.newSessionId) {
+        result.newSessionId = recovered.newSessionId;
+        setSession(chatIdStr, recovered.newSessionId, AGENT_ID);
+      }
+    }
+
+    const rawResponse = result.text?.trim() || formatEmptyReply(result.usage);
 
     // Save conversation turn
     saveConversationTurn(chatIdStr, text, rawResponse, result.newSessionId ?? sessionId, AGENT_ID);
@@ -1757,10 +1930,17 @@ async function processDashboardMessage(
         logger.error({ err: dbErr }, 'Failed to save token usage');
       }
     }
+
+    // Delete the scratchpad only on a clean success. Non-success / error /
+    // abort leaves the file in place for the startup sweep.
+    if (result.usage?.subtype === 'success') {
+      deleteScratchpad(scratchpadPath);
+    }
   } catch (err) {
     setActiveAbort(chatIdStr, null);
     logger.error({ err }, 'Dashboard message processing error');
     emitChatEvent({ type: 'error', chatId: chatIdStr, content: 'Something went wrong. Check the logs.' });
+    // Intentional: scratchpad stays on error — sweep handles it.
   } finally {
     setProcessing(chatIdStr, false);
   }

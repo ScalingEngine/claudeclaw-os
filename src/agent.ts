@@ -75,6 +75,19 @@ export function loadMcpServers(allowlist?: string[], projectCwd?: string): Recor
   return merged;
 }
 
+/**
+ * SDK result subtypes — 'success' or one of several error variants.
+ * See @anthropic-ai/claude-agent-sdk's SDKResultMessage for the canonical list.
+ * Typed loosely (string fallback) so future SDK additions don't break compile.
+ */
+export type ResultSubtype =
+  | 'success'
+  | 'error_max_turns'
+  | 'error_max_budget_usd'
+  | 'error_during_execution'
+  | 'error_max_structured_output_retries'
+  | string;
+
 export interface UsageInfo {
   inputTokens: number;
   outputTokens: number;
@@ -96,6 +109,18 @@ export interface UsageInfo {
    * history + tool results for that call. Use this for context warnings.
    */
   lastCallInputTokens: number;
+  /**
+   * SDK result subtype: 'success', 'error_max_turns', 'error_max_budget_usd',
+   * 'error_during_execution', or 'error_max_structured_output_retries'.
+   * Used by the bot layer to surface honest failure messages instead of
+   * fabricating "Done." when result.text is empty.
+   */
+  subtype: ResultSubtype;
+  /**
+   * Number of agentic turns the SDK consumed for this query. Compare against
+   * AGENT_MAX_TURNS to surface "X/Y turns" diagnostics on empty replies.
+   */
+  numTurns: number;
 }
 
 /** Progress event emitted during agent execution for Telegram feedback. */
@@ -342,7 +367,15 @@ export async function runAgent(
       if (ev['type'] === 'result') {
         resultText = (ev['result'] as string | null | undefined) ?? null;
 
-        // Extract usage info from result event
+        // Extract usage info from result event. The SDK emits one of two result
+        // shapes: SDKResultSuccess (subtype: 'success', has `result` text) or
+        // SDKResultError (subtype: 'error_max_turns' | 'error_max_budget_usd' |
+        // 'error_during_execution' | 'error_max_structured_output_retries',
+        // no `result` text). We capture both subtype and num_turns so the
+        // bot layer can surface an honest failure message instead of
+        // fabricating "Done." when text is empty.
+        const evSubtype = (ev['subtype'] as string) ?? 'success';
+        const evNumTurns = (ev['num_turns'] as number) ?? 0;
         const evUsage = ev['usage'] as Record<string, number> | undefined;
         if (evUsage) {
           usage = {
@@ -354,6 +387,8 @@ export async function runAgent(
             preCompactTokens,
             lastCallCacheRead,
             lastCallInputTokens,
+            subtype: evSubtype,
+            numTurns: evNumTurns,
           };
           logger.info(
             {
@@ -363,13 +398,15 @@ export async function runAgent(
               lastCallInputTokens: usage.lastCallInputTokens,
               costUsd: usage.totalCostUsd,
               didCompact,
+              subtype: evSubtype,
+              numTurns: evNumTurns,
             },
             'Turn usage',
           );
         }
 
         logger.info(
-          { hasResult: !!resultText, subtype: ev['subtype'] },
+          { hasResult: !!resultText, subtype: evSubtype, numTurns: evNumTurns },
           'Agent result received',
         );
       }
