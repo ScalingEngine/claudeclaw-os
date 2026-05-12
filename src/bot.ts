@@ -35,6 +35,7 @@ import {
 import { clearSession, getRecentConversation, getRecentMemories, getRecentTaskOutputs, getSession, getSessionConversation, logToHiveMind, pinMemory, unpinMemory, setSession, lookupWaChatId, saveWaMessageMap, saveTokenUsage, saveCompactionEvent, getCompactionCount } from './db.js';
 import { logger } from './logger.js';
 import { downloadMedia, buildPhotoMessage, buildDocumentMessage, buildVideoMessage } from './media.js';
+import { createScratchpad, deleteScratchpad } from './scratchpad.js';
 import { buildMemoryContext, evaluateMemoryRelevance, saveConversationTurn, shouldNudgeMemory, MEMORY_NUDGE_TEXT } from './memory.js';
 import { classifyMessageComplexity } from './message-classifier.js';
 import { scanForSecrets, redactSecrets } from './exfiltration-guard.js';
@@ -542,6 +543,20 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
     parts.push(MEMORY_NUDGE_TEXT);
   }
 
+  // Per-turn scratchpad: deterministic working file the model can Write/Read
+  // across context auto-compaction. Lifecycle is owned by the caller (this
+  // function) — see try/finally around runAgentWithRetry below. The path is
+  // captured outside the try so Plan 06-03's retry-after-compaction helper
+  // can re-inject it.
+  const scratchpadPath = createScratchpad(AGENT_ID, chatIdStr);
+  parts.push(
+    `[Scratchpad — append findings here so they survive context compaction]\n` +
+    `Your scratchpad for this turn is ${scratchpadPath}.\n` +
+    `Use the Write tool to append findings as you go. After context compaction\n` +
+    `fires, Read this file before continuing so your prior research survives.\n` +
+    `[End scratchpad]`,
+  );
+
   parts.push(message);
   const fullMessage = parts.join('\n\n');
 
@@ -797,11 +812,19 @@ async function handleMessage(ctx: Context, message: string, forceVoiceReply = fa
       }
     }
 
+    // Delete the scratchpad only on a clean success. Any non-success subtype,
+    // abort, or error path leaves the file in place so the startup sweep
+    // (cleanupOldScratchpads) can age it out OR the next turn can recover it.
+    if (result.usage?.subtype === 'success') {
+      deleteScratchpad(scratchpadPath);
+    }
+
     setProcessing(chatIdStr, false);
   } catch (err) {
     clearInterval(typingInterval);
     setActiveAbort(chatIdStr, null);
     setProcessing(chatIdStr, false);
+    // Intentional: do NOT delete scratchpadPath on error. Sweep handles it.
 
     if (err instanceof AgentError) {
       logger.error(
@@ -1665,6 +1688,16 @@ async function processDashboardMessage(
       dashParts.push(`[Recent scheduled task context — the user may be replying to this]\n${taskLines.join('\n\n')}\n[End task context]`);
     }
 
+    // Per-turn scratchpad (dashboard path — same lifecycle as Telegram path above).
+    const scratchpadPath = createScratchpad(AGENT_ID, chatIdStr);
+    dashParts.push(
+      `[Scratchpad — append findings here so they survive context compaction]\n` +
+      `Your scratchpad for this turn is ${scratchpadPath}.\n` +
+      `Use the Write tool to append findings as you go. After context compaction\n` +
+      `fires, Read this file before continuing so your prior research survives.\n` +
+      `[End scratchpad]`,
+    );
+
     dashParts.push(text);
     const fullMessage = dashParts.join('\n\n');
 
@@ -1791,10 +1824,17 @@ async function processDashboardMessage(
         logger.error({ err: dbErr }, 'Failed to save token usage');
       }
     }
+
+    // Delete the scratchpad only on a clean success. Non-success / error /
+    // abort leaves the file in place for the startup sweep.
+    if (result.usage?.subtype === 'success') {
+      deleteScratchpad(scratchpadPath);
+    }
   } catch (err) {
     setActiveAbort(chatIdStr, null);
     logger.error({ err }, 'Dashboard message processing error');
     emitChatEvent({ type: 'error', chatId: chatIdStr, content: 'Something went wrong. Check the logs.' });
+    // Intentional: scratchpad stays on error — sweep handles it.
   } finally {
     setProcessing(chatIdStr, false);
   }
