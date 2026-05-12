@@ -1,6 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { splitMessage, extractFileMarkers, recoverFromCompactionIfNeeded } from './bot.js';
-import type { UsageInfo } from './agent.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { splitMessage, extractFileMarkers, recoverFromCompactionIfNeeded, formatTimeoutReply } from './bot.js';
+import type { UsageInfo, AgentResult, SubagentResult } from './agent.js';
 
 describe('splitMessage', () => {
   it('returns single-element array for short messages', () => {
@@ -350,5 +353,258 @@ describe('recoverFromCompactionIfNeeded', () => {
     const out = await recoverFromCompactionIfNeeded(initial, '/tmp/x.md', rerun);
     expect(rerun).not.toHaveBeenCalled();
     expect(out).toBe(initial);
+  });
+});
+
+// ── formatTimeoutReply (Phase 7 — SALVAGE-01..03) ─────────────────────
+//
+// Captured 2026-05-12 14:14 ET from
+// ~/.claudeclaw/scratch/archie-5005645513-1778594387139.md — 2.7KB of GHL
+// workflows API research that sat on disk while the user saw the bare
+// timeout message. Used as a realistic fixture so the formatter is
+// exercised on real-world content shape (markdown headings, code spans,
+// URLs, bullet lists), not synthetic toy strings.
+const ARCHIE_SCRATCHPAD_FIXTURE = `## GHL Workflows API — Findings
+
+**Base URLs:**
+- V2 (current): https://services.leadconnectorhq.com
+- V1 (EOL Dec 2025): https://rest.gohighlevel.com
+
+**Auth:** Bearer JWT + \`Version: 2021-07-28\` header + \`locationId\` query param.
+
+**Endpoints (confirmed):**
+- GET /workflows/ — list workflows for a location
+- PUT /workflows/{id}/status — change workflow status
+- POST /workflows/{id}/trigger — marketplace trigger execute
+
+**Trigger subscription payload:** \`{ eventType, eventData: {...}, locationId, contactId? }\`
+
+**Rate limits:** 100 req / 10s per resource.
+**Required scopes:** workflows.readonly
+
+**Sources checked:**
+- https://highlevel.stoplight.io/docs/integrations
+- https://github.com/GoHighLevel/highlevel-api-docs
+
+**Next: need to find** webhook signature scheme + retry semantics.
+`;
+
+function makeTimeoutUsage(overrides: Partial<UsageInfo> = {}): UsageInfo {
+  return {
+    inputTokens: 100,
+    outputTokens: 50,
+    cacheReadInputTokens: 0,
+    totalCostUsd: 0.001,
+    didCompact: false,
+    preCompactTokens: null,
+    lastCallCacheRead: 0,
+    lastCallInputTokens: 100,
+    subtype: 'success',
+    numTurns: 12,
+    ...overrides,
+  };
+}
+
+function writeScratchpad(agentId: string, chatId: string, body: string | null): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'timeout-test-'));
+  const file = path.join(dir, `${agentId}-${chatId}-${Date.now()}.md`);
+  const header = `# Scratchpad for ${agentId} / chat ${chatId}\n\n`;
+  fs.writeFileSync(file, body === null ? header : header + body, 'utf-8');
+  return file;
+}
+
+describe('formatTimeoutReply', () => {
+  const tmpFiles: string[] = [];
+
+  function track(p: string): string {
+    tmpFiles.push(p);
+    return p;
+  }
+
+  afterEach(() => {
+    while (tmpFiles.length) {
+      const p = tmpFiles.pop()!;
+      try {
+        fs.rmSync(path.dirname(p), { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+
+  it('all three salvage sources empty → returns fallback verbatim (SALVAGE-03)', () => {
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: [],
+    };
+    const fallback = 'Timed out after 900s. Try smaller steps.';
+    const out = formatTimeoutReply(result, null, fallback);
+    expect(out).toBe(fallback);
+  });
+
+  it('header-only scratchpad + empty subagents + null text → returns fallback verbatim', () => {
+    const file = track(writeScratchpad('archie', '123', null));
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: [],
+    };
+    const fallback = 'Timed out after 900s. Try smaller steps.';
+    const out = formatTimeoutReply(result, file, fallback);
+    expect(out).toBe(fallback);
+  });
+
+  it('subagents only — includes Task section + footer', () => {
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_1', content: 'Found 3 repos: ...', isError: false },
+    ];
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    expect(out).toContain('## Subagent: Task');
+    expect(out).toContain('Found 3 repos: ...');
+    expect(out).not.toContain('## Scratchpad');
+    expect(out).not.toContain('## Partial work');
+    // Footer
+    expect(out).toMatch(/Recovered\s+1\s+subagent/i);
+  });
+
+  it('scratchpad only — uses the Archie fixture (real-world shape)', () => {
+    const file = track(writeScratchpad('archie', '5005645513', ARCHIE_SCRATCHPAD_FIXTURE));
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: [],
+    };
+    const out = formatTimeoutReply(result, file, 'FALLBACK');
+    expect(out).toContain('## Scratchpad');
+    expect(out).toContain('V2 (current): https://services.leadconnectorhq.com');
+    expect(out).toContain('workflows.readonly');
+    expect(out).not.toContain('## Subagent');
+    expect(out).not.toContain('## Partial work');
+    // Header line from createScratchpad must be stripped by readScratchpad
+    expect(out).not.toMatch(/# Scratchpad for archie/);
+  });
+
+  it('partial text only', () => {
+    const result: AgentResult = {
+      text: 'Started researching GHL...',
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: [],
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    expect(out).toContain('## Partial work');
+    expect(out).toContain('Started researching GHL...');
+    expect(out).not.toContain('## Subagent');
+    expect(out).not.toContain('## Scratchpad');
+  });
+
+  it('all three sources present — sections appear in CONTEXT-locked precedence order', () => {
+    const file = track(writeScratchpad('archie', '7', ARCHIE_SCRATCHPAD_FIXTURE));
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_a', content: 'Subagent A output', isError: false },
+      { toolName: 'Task', toolUseId: 'tu_b', content: 'Subagent B output', isError: false },
+    ];
+    const result: AgentResult = {
+      text: 'Conclusion in progress...',
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, file, 'FALLBACK');
+    const subagentIdx = out.indexOf('## Subagent: Task');
+    const scratchpadIdx = out.indexOf('## Scratchpad');
+    const partialIdx = out.indexOf('## Partial work');
+    expect(subagentIdx).toBeGreaterThan(-1);
+    expect(scratchpadIdx).toBeGreaterThan(-1);
+    expect(partialIdx).toBeGreaterThan(-1);
+    expect(subagentIdx).toBeLessThan(scratchpadIdx);
+    expect(scratchpadIdx).toBeLessThan(partialIdx);
+    // Both subagents rendered
+    expect(out).toContain('Subagent A output');
+    expect(out).toContain('Subagent B output');
+  });
+
+  it('footer includes recovered count and turn count when usage is present', () => {
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_1', content: 'a', isError: false },
+      { toolName: 'Task', toolUseId: 'tu_2', content: 'b', isError: false },
+    ];
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage({ numTurns: 18 }),
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    // Footer line — extract everything after the last "---"
+    const footer = out.slice(out.lastIndexOf('---'));
+    expect(footer).toMatch(/2\s+subagent/i);
+    expect(footer).toMatch(/18\s+turn/i);
+  });
+
+  it('footer omits turn clause when usage is null', () => {
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_x', content: 'x', isError: false },
+    ];
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: null,
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    const footer = out.slice(out.lastIndexOf('---'));
+    expect(footer).toMatch(/1\s+subagent/i);
+    expect(footer).not.toMatch(/turn/i);
+  });
+
+  it('array-shaped subagent content rendered verbatim (already-joined string)', () => {
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_1', content: 'Part A\nPart B', isError: false },
+    ];
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    expect(out).toContain('Part A');
+    expect(out).toContain('Part B');
+  });
+
+  it('error subagent labelled with (error) annotation', () => {
+    const subs: SubagentResult[] = [
+      { toolName: 'Task', toolUseId: 'tu_err', content: 'something went wrong', isError: true },
+    ];
+    const result: AgentResult = {
+      text: null,
+      newSessionId: undefined,
+      usage: makeTimeoutUsage(),
+      aborted: true,
+      subagentResults: subs,
+    };
+    const out = formatTimeoutReply(result, null, 'FALLBACK');
+    expect(out).toContain('## Subagent: Task (error)');
+    expect(out).toContain('something went wrong');
   });
 });

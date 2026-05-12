@@ -24,7 +24,7 @@ vi.mock('./logger.js', () => ({
   },
 }));
 
-import { runAgentWithRetry } from './agent.js';
+import { runAgent, runAgentWithRetry, type SubagentResult } from './agent.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -201,4 +201,198 @@ describe('runAgentWithRetry', () => {
     expect(capturedModels[0]).toBe('claude-opus-4-6');
     expect(capturedModels[1]).toBe('claude-sonnet-4-6');
   }, 15000);
+});
+
+/**
+ * Build a mock SDK stream that yields the given events in order, calls
+ * `abortCtrl.abort()` (if provided) right after yield index `abortAfter`,
+ * and finally throws an `AbortError` so agent.ts:catch fires and the
+ * `abortController?.signal.aborted` branch is taken.
+ */
+function makeAbortingStream(
+  events: Array<Record<string, unknown>>,
+  abortCtrl: AbortController,
+  abortAfter: number,
+) {
+  return async function* () {
+    for (let i = 0; i < events.length; i++) {
+      yield events[i];
+      if (i === abortAfter) {
+        abortCtrl.abort();
+      }
+    }
+    throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+  };
+}
+
+describe('runAgent tool_result capture on abort', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('captures Task tool_result blocks emitted before abort', async () => {
+    const abortCtrl = new AbortController();
+    const events: Array<Record<string, unknown>> = [
+      { type: 'system', subtype: 'init', session_id: 'sess-test' },
+      {
+        type: 'assistant',
+        message: {
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tu_1',
+              name: 'Task',
+              input: { description: 'Search GitHub for GHL workflow API patterns' },
+            },
+          ],
+          usage: {},
+        },
+      },
+      {
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_1',
+              is_error: false,
+              content: 'Found 3 repos: ...payload...',
+            },
+          ],
+        },
+      },
+    ];
+    mockQuery.mockReturnValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeAbortingStream(events, abortCtrl, /* abortAfter */ 2)() as any,
+    );
+
+    const result = await runAgent(
+      'test prompt',
+      undefined,
+      noop,
+      undefined,
+      undefined,
+      abortCtrl,
+    );
+
+    expect(result.aborted).toBe(true);
+    expect(result.text).toBe(null);
+    expect(Array.isArray(result.subagentResults)).toBe(true);
+    const captured = result.subagentResults as SubagentResult[];
+    expect(captured.length).toBe(1);
+    expect(captured[0].toolName).toBe('Task');
+    expect(captured[0].toolUseId).toBe('tu_1');
+    expect(captured[0].content).toBe('Found 3 repos: ...payload...');
+    expect(captured[0].isError).toBe(false);
+  });
+
+  it('handles array-shaped tool_result content (joins text blocks with newline)', async () => {
+    const abortCtrl = new AbortController();
+    const events: Array<Record<string, unknown>> = [
+      { type: 'system', subtype: 'init', session_id: 'sess-test' },
+      {
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'tool_use', id: 'tu_2', name: 'Task', input: {} },
+          ],
+          usage: {},
+        },
+      },
+      {
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_2',
+              is_error: false,
+              content: [
+                { type: 'text', text: 'Part A' },
+                { type: 'text', text: 'Part B' },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+    mockQuery.mockReturnValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeAbortingStream(events, abortCtrl, 2)() as any,
+    );
+
+    const result = await runAgent(
+      'test', undefined, noop, undefined, undefined, abortCtrl,
+    );
+
+    expect(result.aborted).toBe(true);
+    const captured = result.subagentResults as SubagentResult[];
+    expect(captured.length).toBe(1);
+    expect(captured[0].content).toBe('Part A\nPart B');
+  });
+
+  it('skips tool_result for non-Task tool_use (Read, Grep, etc.)', async () => {
+    const abortCtrl = new AbortController();
+    const events: Array<Record<string, unknown>> = [
+      { type: 'system', subtype: 'init', session_id: 'sess-test' },
+      {
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'tool_use', id: 'tu_3', name: 'Read', input: { file_path: '/tmp/x' } },
+          ],
+          usage: {},
+        },
+      },
+      {
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu_3',
+              is_error: false,
+              content: 'file contents here',
+            },
+          ],
+        },
+      },
+    ];
+    mockQuery.mockReturnValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeAbortingStream(events, abortCtrl, 2)() as any,
+    );
+
+    const result = await runAgent(
+      'test', undefined, noop, undefined, undefined, abortCtrl,
+    );
+
+    expect(result.aborted).toBe(true);
+    const captured = result.subagentResults as SubagentResult[];
+    expect(captured.length).toBe(0);
+  });
+
+  it('returns empty subagentResults array when no Task tool_use was registered', async () => {
+    const abortCtrl = new AbortController();
+    const events: Array<Record<string, unknown>> = [
+      { type: 'system', subtype: 'init', session_id: 'sess-test' },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: 'thinking...' }], usage: {} },
+      },
+    ];
+    mockQuery.mockReturnValue(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeAbortingStream(events, abortCtrl, 1)() as any,
+    );
+
+    const result = await runAgent(
+      'test', undefined, noop, undefined, undefined, abortCtrl,
+    );
+
+    expect(result.aborted).toBe(true);
+    expect(Array.isArray(result.subagentResults)).toBe(true);
+    expect((result.subagentResults as SubagentResult[]).length).toBe(0);
+  });
 });
