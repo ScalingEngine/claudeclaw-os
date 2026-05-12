@@ -154,11 +154,36 @@ function toolLabel(toolName: string): string {
   return toolName;
 }
 
+/**
+ * One captured tool_result block emitted on a `user` event during a turn.
+ *
+ * The Claude Agent SDK emits subagent (Task tool) output as a `tool_result`
+ * block paired with an earlier `assistant`-event `tool_use` block by
+ * `tool_use_id`. agent.ts now buffers these into AgentResult.subagentResults
+ * so bot.ts can salvage them on the timeout path. Phase 7 gates capture on
+ * `toolName === 'Task'`; future tools can be added without an interface
+ * change since this struct is generic over tool name.
+ *
+ * Content normalization (see canonical reference at
+ * warroom-text-orchestrator.ts:1623-1702):
+ *   - If tool_result.content is a string, used as-is.
+ *   - If it is an array of `{ type: 'text', text }`, the `text` fields are
+ *     joined with `\n`.
+ *   - Otherwise it falls back to `JSON.stringify(rawContent)`.
+ */
+export interface SubagentResult {
+  toolName: string;
+  toolUseId: string;
+  content: string;
+  isError: boolean;
+}
+
 export interface AgentResult {
   text: string | null;
   newSessionId: string | undefined;
   usage: UsageInfo | null;
   aborted?: boolean;
+  subagentResults?: SubagentResult[];
 }
 
 /**
@@ -233,6 +258,15 @@ export async function runAgent(
   let lastCallCacheRead = 0;
   let lastCallInputTokens = 0;
   let streamedText = '';
+
+  // Phase 7 (SALVAGE-01): capture Task subagent tool_result blocks as they
+  // stream so they survive the abort path. `toolUseRegistry` is populated
+  // from assistant-event tool_use blocks (so we can identify which results
+  // came from a Task dispatch); `subagentResults` accumulates the paired
+  // user-event tool_result blocks. Both `const` because their contents
+  // mutate but the references do not.
+  const toolUseRegistry = new Map<string, { name: string; input: unknown }>();
+  const subagentResults: SubagentResult[] = [];
 
   // Refresh typing indicator on an interval while Claude works.
   // Telegram's "typing..." action expires after ~5s.
@@ -321,12 +355,19 @@ export async function runAgent(
         }
 
         // Extract tool_use blocks from assistant content for progress reporting
-        if (onProgress) {
-          const content = msg?.['content'] as Array<{ type: string; name?: string }> | undefined;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === 'tool_use' && block.name) {
+        // AND register them in toolUseRegistry so the paired user-event
+        // tool_result (Phase 7) can be attributed back to the originating tool.
+        const content = msg?.['content'] as
+          | Array<{ type: string; name?: string; id?: string; input?: unknown }>
+          | undefined;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'tool_use' && block.name) {
+              if (onProgress) {
                 onProgress({ type: 'tool_active', description: toolLabel(block.name) });
+              }
+              if (block.id) {
+                toolUseRegistry.set(block.id, { name: block.name, input: block.input });
               }
             }
           }
@@ -361,6 +402,59 @@ export async function runAgent(
         }
         if (streamEvent?.['type'] === 'message_start') {
           streamedText = '';
+        }
+      }
+
+      // Phase 7 (SALVAGE-01): capture tool_result blocks emitted on `user`
+      // events so completed Task subagent payloads survive a wall-clock
+      // abort. Without this handler, agent.ts dropped the SDK's
+      // `tool_result.content` on the floor — bot.ts only saw `text: null`.
+      //
+      // Gated on `name === 'Task'` per CONTEXT decision (Phase 7 scope).
+      // Each block is wrapped in try/catch so a single malformed payload
+      // cannot kill the loop — matches the best-effort posture used in
+      // scratchpad.ts:52-55 and media.ts.
+      if (ev['type'] === 'user') {
+        const message = ev['message'] as Record<string, unknown> | undefined;
+        const blocks = message?.['content'] as Array<Record<string, unknown>> | undefined;
+        if (Array.isArray(blocks)) {
+          for (const block of blocks) {
+            try {
+              if (block['type'] !== 'tool_result') continue;
+              const toolUseId = block['tool_use_id'] as string | undefined;
+              if (!toolUseId) continue;
+              const registered = toolUseRegistry.get(toolUseId);
+              if (!registered) continue;
+              if (registered.name !== 'Task') continue;
+
+              const rawContent = block['content'];
+              let normalized: string;
+              if (typeof rawContent === 'string') {
+                normalized = rawContent;
+              } else if (Array.isArray(rawContent)) {
+                normalized = rawContent
+                  .map((part) => {
+                    const p = part as Record<string, unknown>;
+                    return p['type'] === 'text' && typeof p['text'] === 'string'
+                      ? (p['text'] as string)
+                      : '';
+                  })
+                  .filter((s) => s.length > 0)
+                  .join('\n');
+              } else {
+                normalized = JSON.stringify(rawContent);
+              }
+
+              subagentResults.push({
+                toolName: registered.name,
+                toolUseId,
+                content: normalized,
+                isError: (block['is_error'] as boolean | undefined) ?? false,
+              });
+            } catch {
+              /* skip malformed tool_result block — best-effort capture */
+            }
+          }
         }
       }
 
@@ -413,8 +507,11 @@ export async function runAgent(
     }
   } catch (err) {
     if (abortController?.signal.aborted) {
-      logger.info('Agent query aborted by user');
-      return { text: null, newSessionId, usage, aborted: true };
+      logger.info(
+        { subagentResultsCount: subagentResults.length },
+        'Agent query aborted by user',
+      );
+      return { text: null, newSessionId, usage, aborted: true, subagentResults };
     }
 
     // Classify the error and attach context-aware metadata
@@ -429,7 +526,7 @@ export async function runAgent(
     clearInterval(typingInterval);
   }
 
-  return { text: resultText, newSessionId, usage };
+  return { text: resultText, newSessionId, usage, subagentResults };
 }
 
 // ── Retry wrapper ─────────────────────────────────────────────────
