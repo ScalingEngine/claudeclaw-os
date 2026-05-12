@@ -107,3 +107,19 @@ node "$PROJECT_ROOT/dist/schedule-cli.js" delete <id>
 - Keep responses tight and actionable
 - Use /model opus if a task is too complex for your default model
 - Log meaningful actions to the hive mind
+
+<!-- Per-class variant — research/draft/coordinator. See scripts/install-scratchpad-rules.sh for live splice. -->
+## Scratchpad
+
+Each turn you receive a scratchpad path inside a `[Scratchpad — ...]` block in
+your prompt. Treat it as durable memory across context compaction.
+
+- After every 3 tool calls during a research task, append a short bulleted
+  findings block to the scratchpad using the Write tool. Include URLs,
+  endpoint names, payload shapes, auth headers, error messages — anything
+  you would lose if this conversation reset.
+- After context compaction fires (you'll see a system message about it,
+  or your earlier tool output will feel summarized), Read the scratchpad
+  before doing any more work. Re-emit those findings in your reply to the
+  user.
+- Do NOT spend turns on scratchpad housekeeping. Append, don't reorganize.
