@@ -22,6 +22,7 @@ import { logger } from './logger.js';
 import { messageQueue } from './message-queue.js';
 import { runAgent } from './agent.js';
 import { formatForTelegram, splitMessage } from './bot.js';
+import { writeVaultTranscript } from './vault-transcript.js';
 
 type Sender = (text: string) => Promise<void>;
 
@@ -200,8 +201,26 @@ async function runDueMissionTasks(): Promise<void> {
         if (cancelledByUser) {
           // Status is already 'cancelled' from the dashboard write — leave it.
           logger.info({ missionId: mission.id }, 'Mission task cancelled by user');
+          // Phase 4.1: best-effort transcript for the cancelled run. The row
+          // is already 'cancelled' (user-driven terminal) so we don't gate
+          // on transcript success — re-running would contradict the user.
+          await tryWriteTranscript(mission, schedulerAgentId, '', 'cancelled by user', 'failed');
           await finalizeNotion(mission, 'failed', 'cancelled by user');
         } else {
+          // Phase 4.1: vault transcript is a hard precondition for marking
+          // terminal. If the transcript can't be written, leave the mission
+          // in 'running' so resetStuckMissionTasks reclaims it.
+          const transcriptOk = await tryWriteTranscript(
+            mission,
+            schedulerAgentId,
+            '',
+            'Timed out after 10 minutes',
+            'failed',
+          );
+          if (!transcriptOk) {
+            logger.error({ missionId: mission.id }, 'Vault transcript write failed on timeout — refusing to mark mission failed');
+            return;
+          }
           completeMissionTask(mission.id, null, 'failed', 'Timed out after 10 minutes');
           logger.warn({ missionId: mission.id }, 'Mission task timed out');
           await finalizeNotion(mission, 'failed', 'Timed out after 10 minutes');
@@ -215,6 +234,18 @@ async function runDueMissionTasks(): Promise<void> {
         }
       } else {
         const text = result.text?.trim() || 'Task completed with no output.';
+
+        // Phase 4.1: vault transcript is a hard precondition for marking
+        // terminal. If the transcript can't be written (disk full, vault
+        // missing, etc), we DO NOT mark the mission complete or flip Notion.
+        // Mission stays in 'running' state; resetStuckMissionTasks on next
+        // boot reclaims it.
+        const transcriptOk = await tryWriteTranscript(mission, schedulerAgentId, text, undefined, 'executed');
+        if (!transcriptOk) {
+          logger.error({ missionId: mission.id }, 'Vault transcript write failed — refusing to mark mission complete');
+          return;
+        }
+
         completeMissionTask(mission.id, text, 'completed');
         logger.info({ missionId: mission.id }, 'Mission task completed');
         await finalizeNotion(mission, 'success', text);
@@ -237,8 +268,22 @@ async function runDueMissionTasks(): Promise<void> {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (cancelledByUser) {
         logger.info({ missionId: mission.id }, 'Mission task cancelled by user (threw on abort)');
+        await tryWriteTranscript(mission, schedulerAgentId, '', 'cancelled by user', 'failed');
         await finalizeNotion(mission, 'failed', 'cancelled by user');
       } else {
+        // Phase 4.1: same gate on the catch path. If transcript fails,
+        // leave mission in 'running' for next boot to reclaim.
+        const transcriptOk = await tryWriteTranscript(
+          mission,
+          schedulerAgentId,
+          '',
+          errMsg.slice(0, 2000),
+          'failed',
+        );
+        if (!transcriptOk) {
+          logger.error({ err, missionId: mission.id }, 'Vault transcript write failed on error — refusing to mark mission failed');
+          return;
+        }
         completeMissionTask(mission.id, null, 'failed', errMsg.slice(0, 500));
         logger.error({ err, missionId: mission.id }, 'Mission task failed');
         await finalizeNotion(mission, 'failed', errMsg);
@@ -248,6 +293,58 @@ async function runDueMissionTasks(): Promise<void> {
       runningTaskIds.delete(missionKey);
     }
   });
+}
+
+/**
+ * Phase 4.1 — vault transcript contract.
+ *
+ * Writes a full transcript to <VAULT_ROOT>/_execution/durable/queue/<lane>/
+ * <notion_page_id>.md before the scheduler marks a Notion-originated mission
+ * terminal. Non-Notion missions skip silently — the contract only applies
+ * to work units that have a Notion source row.
+ *
+ * Returns true on success (or skip). Returns false if the write threw, in
+ * which case the scheduler refuses to advance the mission to a terminal
+ * state.
+ */
+async function tryWriteTranscript(
+  mission: {
+    id: string;
+    prompt: string;
+    started_at: number | null;
+    notion_page_id?: string | null;
+    notion_db?: string | null;
+    dispatch_log_id?: string | null;
+  },
+  agent: string,
+  output: string,
+  errorMessage: string | undefined,
+  status: 'executed' | 'failed' | 'acknowledged',
+): Promise<boolean> {
+  // Non-Notion missions skip silently — the contract only applies to
+  // Notion-originated work.
+  if (!mission.notion_page_id || !mission.notion_db || !mission.dispatch_log_id) {
+    return true;
+  }
+  try {
+    writeVaultTranscript({
+      notionPageId: mission.notion_page_id,
+      notionDb: mission.notion_db as 'comms' | 'execution' | 'decisions' | 'signals',
+      dispatchLogId: mission.dispatch_log_id,
+      runId: mission.id,
+      agent,
+      startedAt: new Date(mission.started_at ? mission.started_at * 1000 : Date.now()),
+      finishedAt: new Date(),
+      status,
+      prompt: mission.prompt,
+      output,
+      errorMessage,
+    });
+    return true;
+  } catch (err) {
+    logger.error({ err, missionId: mission.id }, 'writeVaultTranscript threw');
+    return false;
+  }
 }
 
 // Phase 4: when a Notion-originated mission ends, flip dispatch_log to
