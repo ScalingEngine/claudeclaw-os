@@ -12,7 +12,12 @@ import {
   completeMissionTask,
   resetStuckMissionTasks,
   getMissionTask,
+  markDispatchExecuting,
+  markDispatchExecuted,
+  markDispatchFailed,
+  setDispatchNotionPageId,
 } from './db.js';
+import { markNotionTerminal, mirrorDispatchToNotion } from './notion-sync.js';
 import { logger } from './logger.js';
 import { messageQueue } from './message-queue.js';
 import { runAgent } from './agent.js';
@@ -148,6 +153,27 @@ async function runDueMissionTasks(): Promise<void> {
 
   logger.info({ missionId: mission.id, title: mission.title }, 'Running mission task');
 
+  // Phase 4: Notion-originated mission? Flip dispatch_log to executing +
+  // mirror the queued/executing transition to Notion's Dispatch Log DB.
+  // Best-effort — local row is authoritative; mirror is for the Notion UX.
+  const isNotionLinked = !!mission.notion_page_id && !!mission.dispatch_log_id;
+  if (isNotionLinked && mission.dispatch_log_id) {
+    markDispatchExecuting(mission.dispatch_log_id);
+    mirrorDispatchToNotion({
+      dispatchId: mission.dispatch_log_id,
+      actionDb: notionDbLabel(mission.notion_db),
+      actionPageId: mission.notion_page_id!,
+      agent: schedulerAgentId,
+      runId: mission.id,
+      status: 'Executing',
+      startedAt: new Date(),
+    }).then((notionId) => {
+      if (notionId && mission.dispatch_log_id) {
+        setDispatchNotionPageId(mission.dispatch_log_id, notionId);
+      }
+    });
+  }
+
   const chatId = ALLOWED_CHAT_ID || 'mission';
   messageQueue.enqueue(chatId, async () => {
     const abortController = new AbortController();
@@ -174,9 +200,11 @@ async function runDueMissionTasks(): Promise<void> {
         if (cancelledByUser) {
           // Status is already 'cancelled' from the dashboard write — leave it.
           logger.info({ missionId: mission.id }, 'Mission task cancelled by user');
+          await finalizeNotion(mission, 'failed', 'cancelled by user');
         } else {
           completeMissionTask(mission.id, null, 'failed', 'Timed out after 10 minutes');
           logger.warn({ missionId: mission.id }, 'Mission task timed out');
+          await finalizeNotion(mission, 'failed', 'Timed out after 10 minutes');
           try {
             await sender('Mission task timed out: "' + mission.title + '"');
           } catch (sendErr) {
@@ -189,6 +217,7 @@ async function runDueMissionTasks(): Promise<void> {
         const text = result.text?.trim() || 'Task completed with no output.';
         completeMissionTask(mission.id, text, 'completed');
         logger.info({ missionId: mission.id }, 'Mission task completed');
+        await finalizeNotion(mission, 'success', text);
 
         // Send result to Telegram
         for (const chunk of splitMessage(formatForTelegram(text))) {
@@ -208,15 +237,50 @@ async function runDueMissionTasks(): Promise<void> {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (cancelledByUser) {
         logger.info({ missionId: mission.id }, 'Mission task cancelled by user (threw on abort)');
+        await finalizeNotion(mission, 'failed', 'cancelled by user');
       } else {
         completeMissionTask(mission.id, null, 'failed', errMsg.slice(0, 500));
         logger.error({ err, missionId: mission.id }, 'Mission task failed');
+        await finalizeNotion(mission, 'failed', errMsg);
       }
     } finally {
       clearInterval(cancelPoll);
       runningTaskIds.delete(missionKey);
     }
   });
+}
+
+// Phase 4: when a Notion-originated mission ends, flip dispatch_log to
+// executed/failed AND write back to the source Notion row. Non-Notion
+// missions skip silently.
+async function finalizeNotion(
+  mission: { id: string; notion_page_id?: string | null; notion_db?: string | null; dispatch_log_id?: string | null },
+  outcome: 'success' | 'failed',
+  detail: string,
+): Promise<void> {
+  if (!mission.notion_page_id || !mission.notion_db || !mission.dispatch_log_id) return;
+
+  if (outcome === 'success') {
+    markDispatchExecuted(mission.dispatch_log_id);
+  } else {
+    markDispatchFailed(mission.dispatch_log_id, detail);
+  }
+
+  try {
+    await markNotionTerminal(mission.notion_page_id, mission.notion_db, outcome, detail);
+  } catch (err) {
+    logger.warn({ err, missionId: mission.id }, 'markNotionTerminal threw — local state is authoritative');
+  }
+}
+
+function notionDbLabel(notionDb: string | null | undefined): import('./db.js').DispatchActionDb {
+  switch (notionDb) {
+    case 'comms':      return 'Communications Queue';
+    case 'execution':  return 'Execution Queue';
+    case 'decisions':  return 'Decisions';
+    case 'signals':    return 'Priority Signals';
+    default:           return 'Execution Queue';
+  }
 }
 
 export function computeNextRun(cronExpression: string): number {

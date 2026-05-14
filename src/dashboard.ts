@@ -253,6 +253,49 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
   }));
 
+  // Phase 4: Notion webhook receiver. Only mounted on the primary
+  // ClaudeClaw instance (VPS); CLAUDECLAW_ROLE on Mac is 'secondary' and
+  // this handler short-circuits 200 OK with `disabled: true`. Auth is via
+  // a shared secret in the X-Notion-Signature header (NOTION_WEBHOOK_SECRET).
+  //
+  // The webhook is a hint — the reconciliation cron in notion-sync.ts is
+  // ground truth — so we never block Notion's retry queue on slow agent
+  // work. We claim the row asynchronously and return 200 quickly.
+  app.post('/webhook/notion', async (c) => {
+    const role = (process.env.CLAUDECLAW_ROLE || '').trim();
+    if (role !== 'primary') {
+      return c.json({ ok: true, disabled: true, reason: `CLAUDECLAW_ROLE=${role || 'unset'}` });
+    }
+
+    const secret = process.env.NOTION_WEBHOOK_SECRET || '';
+    if (secret) {
+      const sig = c.req.header('x-notion-signature') || '';
+      if (!timingSafeEqual(sig, secret)) {
+        logger.warn({ ip: c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') }, 'Notion webhook auth failed');
+        return c.json({ ok: false, error: 'unauthorized' }, 401);
+      }
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ ok: false, error: 'invalid json' }, 400);
+    }
+
+    // Lazy import to keep dashboard boot light (notion-sync also pulls
+    // notion-api, which throws if NOTION_TOKEN is missing — fine to
+    // surface here only when a real event arrives).
+    try {
+      const { handleNotionWebhook } = await import('./notion-sync.js');
+      const result = await handleNotionWebhook(body as any);
+      return c.json({ ok: true, ...result });
+    } catch (err: any) {
+      logger.error({ err: err?.message }, 'Notion webhook handler threw');
+      return c.json({ ok: false, error: 'handler error' }, 500);
+    }
+  });
+
   // Token auth middleware.
   //
   // Strategy: the v2 SPA does client-side routing across many paths
@@ -281,6 +324,22 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
     }
     await next();
   });
+
+  // Phase 4: timing-safe string compare for Notion webhook signature.
+  // The shared-secret comparison is intentionally simple — Notion's
+  // webhook spec lets the receiver pick any header convention; we use a
+  // plain shared secret in X-Notion-Signature because (a) we control
+  // both ends, (b) the body is small and signed at edge by Cloudflare
+  // anyway. If we move to HMAC, swap the body here.
+  function timingSafeEqual(a: string, b: string): boolean {
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    try {
+      return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    } catch {
+      return false;
+    }
+  }
 
   // Inline token check for handlers that USED to rely on the global
   // middleware but now serve a public SPA shell on the same path. Used
