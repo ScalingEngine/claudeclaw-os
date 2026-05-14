@@ -39,6 +39,7 @@ import { logger } from './logger.js';
 import {
   type NotionPage,
   createPageInDatabase,
+  getCheckbox,
   getDate,
   getRichText,
   getSelect,
@@ -356,6 +357,24 @@ async function spawnExecutionFromDecision(decisionPage: NotionPage): Promise<str
     return null;
   }
 
+  // Decision Type guardrail. Routine + Judgment auto-spawn. Strategic
+  // requires an explicit "Spawn Pursuit?" opt-in — Noah's strategic calls
+  // shouldn't silently fan out into Execution Queue rows on the agent's
+  // initiative. Until the "Spawn Pursuit?" checkbox is added to the
+  // Decisions DB schema, getCheckbox returns null and Strategic Decisions
+  // skip auto-spawn entirely (safe rollout).
+  const decisionType = getSelect(decisionPage, 'Decision Type');
+  if (decisionType === 'Strategic') {
+    const optIn = getCheckbox(decisionPage, 'Spawn Pursuit?');
+    if (optIn !== true) {
+      logger.info(
+        { decisionId: decisionPage.id, decisionType, spawnPursuit: optIn },
+        'Strategic Decision without Spawn Pursuit? opt-in — skipping (no dispatch_log row)',
+      );
+      return null;
+    }
+  }
+
   // Record dispatch BEFORE creating the row so a race can't double-spawn.
   // We mark it executed immediately on success (or failed on Notion error)
   // because the spawn is synchronous — no scheduler-driven async work.
@@ -382,7 +401,6 @@ async function spawnExecutionFromDecision(decisionPage: NotionPage): Promise<str
       },
     };
 
-    const decisionType = getSelect(decisionPage, 'Decision Type');
     if (decisionType) properties['Decision Type'] = props.select(decisionType);
 
     const newRow = await createPageInDatabase(EXECUTION_QUEUE_DB, properties);
