@@ -36,6 +36,7 @@ import {
   markDispatchExecuted,
   markDispatchFailed,
 } from './db.js';
+import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
   type NotionPage,
@@ -563,7 +564,9 @@ let booted = false;
  */
 export function startNotionSync(): boolean {
   if (booted) return false;
-  const role = (process.env.CLAUDECLAW_ROLE || '').trim();
+  // systemd user units don't EnvironmentFile= .env, so fall back to readEnvFile.
+  const env = readEnvFile(['CLAUDECLAW_ROLE']);
+  const role = (process.env.CLAUDECLAW_ROLE || env.CLAUDECLAW_ROLE || '').trim();
   if (role !== 'primary') {
     logger.info(
       { role },
