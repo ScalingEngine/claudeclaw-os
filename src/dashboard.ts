@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server';
 import fs from 'fs';
 import path from 'path';
 import { AGENT_ID, ALLOWED_CHAT_ID, DASHBOARD_PORT, DASHBOARD_TOKEN, DASHBOARD_URL, MAIN_AGENT_ID, PROJECT_ROOT, STORE_DIR, WHATSAPP_ENABLED, SLACK_USER_TOKEN, CONTEXT_LIMIT, agentDefaultModel, CLAUDECLAW_CONFIG } from './config.js';
+import { readEnvFile } from './env.js';
 import crypto from 'crypto';
 import {
   getAllScheduledTasks,
@@ -262,12 +263,15 @@ export function buildDashboardApp(botApi?: Api<RawApi>): Hono {
   // ground truth — so we never block Notion's retry queue on slow agent
   // work. We claim the row asynchronously and return 200 quickly.
   app.post('/webhook/notion', async (c) => {
-    const role = (process.env.CLAUDECLAW_ROLE || '').trim();
+    // systemd user units don't EnvironmentFile= .env on the VPS, so fall
+    // back to readEnvFile (same pattern as config.ts).
+    const phase4Env = readEnvFile(['CLAUDECLAW_ROLE', 'NOTION_WEBHOOK_SECRET']);
+    const role = (process.env.CLAUDECLAW_ROLE || phase4Env.CLAUDECLAW_ROLE || '').trim();
     if (role !== 'primary') {
       return c.json({ ok: true, disabled: true, reason: `CLAUDECLAW_ROLE=${role || 'unset'}` });
     }
 
-    const secret = process.env.NOTION_WEBHOOK_SECRET || '';
+    const secret = process.env.NOTION_WEBHOOK_SECRET || phase4Env.NOTION_WEBHOOK_SECRET || '';
     if (secret) {
       const sig = c.req.header('x-notion-signature') || '';
       if (!timingSafeEqual(sig, secret)) {
