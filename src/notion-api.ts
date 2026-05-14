@@ -196,6 +196,18 @@ export function getDate(page: NotionPage, propName: string): string | null {
   return prop.date?.start ?? null;
 }
 
+/**
+ * Read a checkbox property. Returns `null` if the property doesn't exist on
+ * the page (e.g. before a schema PATCH lands) so callers can distinguish
+ * "unchecked" (false) from "not configured yet" (null) and apply a safe
+ * default. Returns boolean once the property is present.
+ */
+export function getCheckbox(page: NotionPage, propName: string): boolean | null {
+  const prop = page.properties[propName];
+  if (!prop || prop.type !== 'checkbox') return null;
+  return prop.checkbox === true;
+}
+
 export function getTitle(page: NotionPage, propName?: string): string {
   if (propName) {
     const prop = page.properties[propName];

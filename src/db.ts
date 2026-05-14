@@ -772,6 +772,12 @@ function runMigrations(database: Database.Database): void {
       ON mission_tasks(notion_page_id)
       WHERE notion_page_id IS NOT NULL;
   `);
+
+  // Phase 4.1: defense-in-depth loop prevention. We store the content hash
+  // of the agent's last write so the next webhook on the same page can be
+  // compared against it; if the hash matches, drop as echo even if the
+  // 60s timestamp window already lapsed.
+  addColumnIfMissing(database, 'dispatch_log', 'content_hash', `TEXT`);
 }
 
 /** @internal - for tests only. Creates a fresh in-memory database. */
@@ -2412,6 +2418,7 @@ export interface DispatchLog {
   error: string | null;
   started_at: number | null;
   finished_at: number | null;
+  content_hash: string | null;
   created_at: number;
 }
 
@@ -2422,11 +2429,12 @@ export function createDispatchLog(opts: {
   missionId?: string | null;
   agent: string;
   notionPageId?: string | null;
+  contentHash?: string | null;
 }): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
-    `INSERT INTO dispatch_log (id, notion_page_id, action_db, action_page_id, mission_id, agent, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)`,
+    `INSERT INTO dispatch_log (id, notion_page_id, action_db, action_page_id, mission_id, agent, status, content_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
   ).run(
     opts.id,
     opts.notionPageId ?? null,
@@ -2434,6 +2442,7 @@ export function createDispatchLog(opts: {
     opts.actionPageId,
     opts.missionId ?? null,
     opts.agent,
+    opts.contentHash ?? null,
     now,
   );
 }
@@ -2466,6 +2475,39 @@ export function getDispatchLog(id: string): DispatchLog | null {
 /** Attach Notion's Dispatch Log page id after it's been created. */
 export function setDispatchNotionPageId(id: string, notionPageId: string): void {
   db.prepare('UPDATE dispatch_log SET notion_page_id = ? WHERE id = ?').run(notionPageId, id);
+}
+
+/**
+ * Phase 4.1: record the content hash of the agent's terminal write-back so
+ * the next webhook on this page can be compared against it for echo
+ * detection. Called from scheduler's finalizeNotion right after the Notion
+ * write succeeds.
+ */
+export function setDispatchContentHash(id: string, contentHash: string): void {
+  db.prepare('UPDATE dispatch_log SET content_hash = ? WHERE id = ?').run(contentHash, id);
+}
+
+/**
+ * Phase 4.1: most recent terminal content_hash for a Notion action page.
+ * Returns null if no executed/failed row exists or its hash is null. Used
+ * by isAgentEcho's hash-check defense — if the incoming page's
+ * `Content Hash` rich_text matches this, drop as echo.
+ */
+export function getLastContentHashForActionPage(
+  actionDb: DispatchActionDb,
+  actionPageId: string,
+): string | null {
+  const row = db
+    .prepare(
+      `SELECT content_hash FROM dispatch_log
+       WHERE action_db = ? AND action_page_id = ?
+         AND status IN ('executed', 'failed')
+         AND content_hash IS NOT NULL
+       ORDER BY COALESCE(finished_at, created_at) DESC
+       LIMIT 1`,
+    )
+    .get(actionDb, actionPageId) as { content_hash: string | null } | undefined;
+  return row?.content_hash ?? null;
 }
 
 /**
