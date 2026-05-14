@@ -2468,6 +2468,21 @@ export function setDispatchNotionPageId(id: string, notionPageId: string): void 
   db.prepare('UPDATE dispatch_log SET notion_page_id = ? WHERE id = ?').run(notionPageId, id);
 }
 
+/**
+ * Idempotency check for synchronous lane operations (Decisions spawn).
+ * Returns true if any dispatch_log row exists for (action_db, action_page_id).
+ * Used to avoid double-spawning Execution Queue rows from the same Decision.
+ */
+export function hasDispatchLogForActionPage(
+  actionDb: DispatchActionDb,
+  actionPageId: string,
+): boolean {
+  const row = db
+    .prepare('SELECT 1 FROM dispatch_log WHERE action_db = ? AND action_page_id = ? LIMIT 1')
+    .get(actionDb, actionPageId);
+  return !!row;
+}
+
 // ── Meet Sessions (Pika video meeting skill) ────────────────────────
 
 export type MeetProvider = 'pika' | 'recall' | 'daily';

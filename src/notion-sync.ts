@@ -31,6 +31,8 @@ import {
   createDispatchLog,
   createMissionTask,
   getMissionTaskByNotionPage,
+  hasDispatchLogForActionPage,
+  markDispatchExecuted,
   markDispatchFailed,
 } from './db.js';
 import { logger } from './logger.js';
@@ -38,6 +40,7 @@ import {
   type NotionPage,
   createPageInDatabase,
   getDate,
+  getRichText,
   getSelect,
   getStatus,
   getTitle,
@@ -64,6 +67,8 @@ interface LaneConfig {
 }
 
 const DISPATCH_LOG_DB = '987b2b4e-9d1b-45e4-84a4-acd56dd09dc1';
+const DECISIONS_DB = 'c04ea54f-1d29-478f-b563-ce5ff49ff5de';
+const EXECUTION_QUEUE_DB = '3c9eadee-24a7-4b74-8411-1fa6c7b69654';
 
 const LANES: LaneConfig[] = [
   {
@@ -239,7 +244,7 @@ function dashUuid(s: string): string {
 // ── Reconciliation poll ───────────────────────────────────────────────
 
 /** Poll all lanes once; idempotent claims. Returns counts for logging. */
-export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number }> {
+export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number; spawned: number }> {
   let claimed = 0;
   let checked = 0;
   let errors = 0;
@@ -264,10 +269,144 @@ export async function reconcileOnce(): Promise<{ claimed: number; checked: numbe
     }
   }
 
-  if (claimed > 0 || errors > 0) {
-    logger.info({ claimed, checked, errors }, 'Notion reconcile pass');
+  // Decisions spawn pass — separate from agent-claim lanes because the
+  // "claim" here is mechanical (read Downstream Action, create Execution
+  // Queue row, link back), no agent run needed.
+  const decisionsResult = await reconcileDecisions();
+  checked += decisionsResult.checked;
+  errors += decisionsResult.errors;
+
+  if (claimed > 0 || decisionsResult.spawned > 0 || errors > 0) {
+    logger.info(
+      { claimed, spawned: decisionsResult.spawned, checked, errors },
+      'Notion reconcile pass',
+    );
   }
-  return { claimed, checked, errors };
+  return { claimed, checked, errors, spawned: decisionsResult.spawned };
+}
+
+// ── Decisions: spawn Execution Queue rows from Decided + Downstream Action ──
+
+/**
+ * Per the COS Operating Manual, agents may act when:
+ *   "Decisions status = Decided and Downstream Action exists"
+ *
+ * The agent's job is NOT to execute the decision (Noah already did that by
+ * marking it Decided). The agent's job is to spawn an Execution Queue row
+ * that captures the Downstream Action, so the existing Execution Queue
+ * claim flow can carry it forward.
+ *
+ * The Decision row's Status is NEVER flipped by this function — per the
+ * manual, "Agent never writes Decision Status." The spawn is recorded in
+ * the local dispatch_log (action_db='Decisions', action_page_id=<decision
+ * page id>) which provides idempotency.
+ */
+async function reconcileDecisions(): Promise<{ spawned: number; checked: number; errors: number }> {
+  let spawned = 0;
+  let checked = 0;
+  let errors = 0;
+
+  const filter = {
+    and: [
+      { property: 'Status', status: { equals: 'Decided' } },
+      { property: 'Downstream Action', rich_text: { is_not_empty: true } },
+    ],
+  };
+
+  try {
+    const pages = await queryDatabase(DECISIONS_DB, filter);
+    checked = pages.length;
+    for (const page of pages) {
+      try {
+        const newRowId = await spawnExecutionFromDecision(page);
+        if (newRowId) spawned += 1;
+      } catch (err) {
+        errors += 1;
+        logger.warn({ err, decisionId: page.id }, 'Decision spawn failed');
+      }
+    }
+  } catch (err) {
+    errors += 1;
+    logger.warn({ err }, 'reconcileDecisions query failed');
+  }
+
+  return { spawned, checked, errors };
+}
+
+/**
+ * Spawn an Execution Queue row from a Decision. Idempotent — checks
+ * dispatch_log for an existing row keyed on the Decision page id before
+ * doing anything. Returns the new Execution Queue page id on success,
+ * null if skipped (already spawned, echo, or empty downstream).
+ */
+async function spawnExecutionFromDecision(decisionPage: NotionPage): Promise<string | null> {
+  if (hasDispatchLogForActionPage('Decisions', decisionPage.id)) {
+    logger.debug({ decisionId: decisionPage.id }, 'Decision already spawned — skipping');
+    return null;
+  }
+  if (isAgentEcho(decisionPage)) {
+    logger.debug({ decisionId: decisionPage.id }, 'Decision echo — skipping');
+    return null;
+  }
+
+  const decisionTitle = (getTitle(decisionPage, 'Decision') || '(untitled decision)').slice(0, 80);
+  const downstreamAction = getRichText(decisionPage, 'Downstream Action').trim();
+  if (!downstreamAction) {
+    logger.debug({ decisionId: decisionPage.id }, 'Decision has empty Downstream Action');
+    return null;
+  }
+
+  // Record dispatch BEFORE creating the row so a race can't double-spawn.
+  // We mark it executed immediately on success (or failed on Notion error)
+  // because the spawn is synchronous — no scheduler-driven async work.
+  const dispatchId = crypto.randomUUID();
+  createDispatchLog({
+    id: dispatchId,
+    actionDb: 'Decisions',
+    actionPageId: decisionPage.id,
+    agent: 'notion-sync',
+  });
+
+  try {
+    // Build the Execution Queue row. Property names verified against the
+    // live DB schema: Handoff Title (title), Status (status), Next Action
+    // (rich_text), Related Decisions (relation), plus Phase 4 provenance.
+    const properties: Record<string, any> = {
+      'Handoff Title': props.title(`From Decision: ${decisionTitle}`),
+      Status: props.status('Pending'),
+      'Next Action': props.richText(downstreamAction.slice(0, 2000)),
+      'Write Source': props.select('Agent'),
+      'Last Synced At': props.date(new Date().toISOString()),
+      'Related Decisions': {
+        relation: [{ id: decisionPage.id }],
+      },
+    };
+
+    const decisionType = getSelect(decisionPage, 'Decision Type');
+    if (decisionType) properties['Decision Type'] = props.select(decisionType);
+
+    const newRow = await createPageInDatabase(EXECUTION_QUEUE_DB, properties);
+    markDispatchExecuted(dispatchId);
+
+    // Write loop-prevention provenance back to the Decision row so a
+    // webhook on this same Decision (which we just touched) gets filtered
+    // by isAgentEcho.
+    await updatePage(decisionPage.id, {
+      'Write Source': props.select('Agent'),
+      'Last Synced At': props.date(new Date().toISOString()),
+      'Vault Slug': props.richText(`_execution/durable/queue/decisions/${decisionPage.id}.md`),
+    });
+
+    logger.info(
+      { decisionId: decisionPage.id, executionId: newRow.id, dispatchId },
+      'Spawned Execution Queue row from Decision',
+    );
+    return newRow.id;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    markDispatchFailed(dispatchId, msg.slice(0, 500));
+    throw err;
+  }
 }
 
 // ── Terminal write-back (scheduler calls this when a mission finishes) ──
