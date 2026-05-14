@@ -234,6 +234,31 @@ function createSchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_mission_status
       ON mission_tasks(assigned_agent, status, priority DESC, created_at ASC);
 
+    -- Phase 4: Notion ↔ ClaudeClaw dispatch audit trail.
+    -- mission_tasks stays atomic (queued→running→completed/failed); the agent's
+    -- run lifecycle observable from Notion lives here, mirroring the Dispatch
+    -- Log database in Notion (db_id=987b2b4e-9d1b-45e4-84a4-acd56dd09dc1).
+    -- Rows are append + finalize: once status=executed/failed, never modified.
+    CREATE TABLE IF NOT EXISTS dispatch_log (
+      id                TEXT PRIMARY KEY,         -- uuid; mirrors Notion page id when one exists
+      notion_page_id    TEXT,                     -- Notion Dispatch Log page id, NULL if local-only
+      action_db         TEXT NOT NULL,            -- Communications Queue | Execution Queue | Decisions | Priority Signals | Issues & Blockers
+      action_page_id    TEXT NOT NULL,            -- the source row that triggered this dispatch
+      mission_id        TEXT,                     -- FK mission_tasks.id (NULL if no executor ran)
+      agent             TEXT NOT NULL,            -- agent that claimed
+      status            TEXT NOT NULL DEFAULT 'queued', -- queued | executing | executed | failed
+      error             TEXT,
+      started_at        INTEGER,
+      finished_at       INTEGER,
+      created_at        INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dispatch_page
+      ON dispatch_log(action_page_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_dispatch_mission
+      ON dispatch_log(mission_id) WHERE mission_id IS NOT NULL;
+
     CREATE TABLE IF NOT EXISTS meet_sessions (
       id              TEXT PRIMARY KEY,         -- session id from the provider's join response
       agent_id        TEXT NOT NULL,            -- which agent is in the meeting
@@ -732,6 +757,20 @@ function runMigrations(database: Database.Database): void {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_convlog_warroom_assistant
       ON conversation_log(source, source_meeting_id, source_turn_id, agent_id)
       WHERE source != 'telegram' AND role = 'assistant';
+  `);
+
+  // Phase 4: notion-originated mission tasks. notion_page_id is the
+  // deterministic identity that lets the reconciliation cron skip work
+  // already claimed (partial unique index below). notion_db is the COS
+  // lane (comms|execution|decisions|signals). dispatch_log_id ties this
+  // mission row to its audit-trail row.
+  addColumnIfMissing(database, 'mission_tasks', 'notion_page_id', `TEXT`);
+  addColumnIfMissing(database, 'mission_tasks', 'notion_db', `TEXT`);
+  addColumnIfMissing(database, 'mission_tasks', 'dispatch_log_id', `TEXT`);
+  database.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_mission_notion
+      ON mission_tasks(notion_page_id)
+      WHERE notion_page_id IS NOT NULL;
   `);
 }
 
@@ -2185,6 +2224,10 @@ export interface MissionTask {
   created_at: number;
   started_at: number | null;
   completed_at: number | null;
+  // Phase 4: Notion-originated task linkage.
+  notion_page_id?: string | null;
+  notion_db?: string | null;          // comms | execution | decisions | signals
+  dispatch_log_id?: string | null;
 }
 
 export function createMissionTask(
@@ -2194,12 +2237,35 @@ export function createMissionTask(
   assignedAgent: string | null = null,
   createdBy = 'dashboard',
   priority = 0,
+  notionLink?: { notionPageId: string; notionDb: string; dispatchLogId?: string | null },
 ): void {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
-    `INSERT INTO mission_tasks (id, title, prompt, assigned_agent, status, created_by, priority, created_at)
-     VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`,
-  ).run(id, title, prompt, assignedAgent, createdBy, priority, now);
+    `INSERT INTO mission_tasks (
+       id, title, prompt, assigned_agent, status, created_by, priority, created_at,
+       notion_page_id, notion_db, dispatch_log_id
+     ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    title,
+    prompt,
+    assignedAgent,
+    createdBy,
+    priority,
+    now,
+    notionLink?.notionPageId ?? null,
+    notionLink?.notionDb ?? null,
+    notionLink?.dispatchLogId ?? null,
+  );
+}
+
+/** Phase 4: lookup mission by Notion page id (idempotency check). */
+export function getMissionTaskByNotionPage(notionPageId: string): MissionTask | null {
+  return (
+    (db
+      .prepare('SELECT * FROM mission_tasks WHERE notion_page_id = ?')
+      .get(notionPageId) as MissionTask) ?? null
+  );
 }
 
 export function getUnassignedMissionTasks(): MissionTask[] {
@@ -2322,6 +2388,84 @@ export function resetStuckMissionTasks(agentId: string): number {
     `UPDATE mission_tasks SET status = 'queued', started_at = NULL WHERE status = 'running' AND assigned_agent = ?`,
   ).run(agentId);
   return result.changes;
+}
+
+// ── Phase 4: Dispatch Log (Notion ↔ ClaudeClaw audit trail) ─────────
+
+export type DispatchActionDb =
+  | 'Communications Queue'
+  | 'Execution Queue'
+  | 'Decisions'
+  | 'Priority Signals'
+  | 'Issues & Blockers';
+
+export type DispatchStatus = 'queued' | 'executing' | 'executed' | 'failed';
+
+export interface DispatchLog {
+  id: string;
+  notion_page_id: string | null;
+  action_db: DispatchActionDb;
+  action_page_id: string;
+  mission_id: string | null;
+  agent: string;
+  status: DispatchStatus;
+  error: string | null;
+  started_at: number | null;
+  finished_at: number | null;
+  created_at: number;
+}
+
+export function createDispatchLog(opts: {
+  id: string;
+  actionDb: DispatchActionDb;
+  actionPageId: string;
+  missionId?: string | null;
+  agent: string;
+  notionPageId?: string | null;
+}): void {
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(
+    `INSERT INTO dispatch_log (id, notion_page_id, action_db, action_page_id, mission_id, agent, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)`,
+  ).run(
+    opts.id,
+    opts.notionPageId ?? null,
+    opts.actionDb,
+    opts.actionPageId,
+    opts.missionId ?? null,
+    opts.agent,
+    now,
+  );
+}
+
+export function markDispatchExecuting(id: string): void {
+  db.prepare(
+    `UPDATE dispatch_log SET status = 'executing', started_at = ?
+     WHERE id = ? AND status = 'queued'`,
+  ).run(Math.floor(Date.now() / 1000), id);
+}
+
+export function markDispatchExecuted(id: string): void {
+  db.prepare(
+    `UPDATE dispatch_log SET status = 'executed', finished_at = ?
+     WHERE id = ? AND status IN ('queued', 'executing')`,
+  ).run(Math.floor(Date.now() / 1000), id);
+}
+
+export function markDispatchFailed(id: string, error: string): void {
+  db.prepare(
+    `UPDATE dispatch_log SET status = 'failed', finished_at = ?, error = ?
+     WHERE id = ? AND status IN ('queued', 'executing')`,
+  ).run(Math.floor(Date.now() / 1000), (error || '').slice(0, 1000), id);
+}
+
+export function getDispatchLog(id: string): DispatchLog | null {
+  return (db.prepare('SELECT * FROM dispatch_log WHERE id = ?').get(id) as DispatchLog) ?? null;
+}
+
+/** Attach Notion's Dispatch Log page id after it's been created. */
+export function setDispatchNotionPageId(id: string, notionPageId: string): void {
+  db.prepare('UPDATE dispatch_log SET notion_page_id = ? WHERE id = ?').run(notionPageId, id);
 }
 
 // ── Meet Sessions (Pika video meeting skill) ────────────────────────
