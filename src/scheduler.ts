@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 import { CronExpressionParser } from 'cron-parser';
 
 import { AGENT_ID, ALLOWED_CHAT_ID, MAIN_AGENT_ID, agentMcpAllowlist } from './config.js';
@@ -15,6 +17,7 @@ import {
   markDispatchExecuting,
   markDispatchExecuted,
   markDispatchFailed,
+  setDispatchContentHash,
   setDispatchNotionPageId,
 } from './db.js';
 import { markNotionTerminal, mirrorDispatchToNotion } from './notion-sync.js';
@@ -362,6 +365,15 @@ async function finalizeNotion(
   } else {
     markDispatchFailed(mission.dispatch_log_id, detail);
   }
+
+  // Phase 4.1: persist the content hash locally so the next webhook fired
+  // by our own write-back can be filtered by isAgentEcho's hash-check
+  // defense. Must match the hash markNotionTerminal writes to Notion's
+  // `Content Hash` rich_text — same input, same digest, same slice.
+  const contentHash = detail
+    ? crypto.createHash('sha256').update(detail).digest('hex').slice(0, 16)
+    : '';
+  if (contentHash) setDispatchContentHash(mission.dispatch_log_id, contentHash);
 
   try {
     await markNotionTerminal(mission.notion_page_id, mission.notion_db, outcome, detail);

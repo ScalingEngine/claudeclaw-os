@@ -30,6 +30,7 @@ import {
   type DispatchActionDb,
   createDispatchLog,
   createMissionTask,
+  getLastContentHashForActionPage,
   getMissionTaskByNotionPage,
   hasDispatchLogForActionPage,
   markDispatchExecuted,
@@ -118,19 +119,40 @@ const LANE_BY_DB_ID = new Map(LANES.map((l) => [l.dbId, l]));
 // ── Loop prevention ───────────────────────────────────────────────────
 
 /**
- * Webhook self-echo filter. A page we just wrote to will fire a webhook;
- * if Write Source=Agent AND Last Synced At is within LOOP_PREVENTION_WINDOW_MS
- * of right now, treat it as our own echo and drop.
+ * Webhook self-echo filter (Phase 4.1: hash + timestamp, OR'd).
+ *
+ * Defense in depth — either match is enough to drop:
+ *   (a) Hash check: the page's `Content Hash` rich_text matches the most
+ *       recent dispatch_log.content_hash for this (actionDb, page_id).
+ *       Catches echoes whose Last Synced At drifted past the 60s window
+ *       (clock skew, retries, manual re-edits that re-fire the webhook).
+ *   (b) Timestamp check: Write Source=Agent AND Last Synced At is within
+ *       LOOP_PREVENTION_WINDOW_MS. The original Phase 4 filter.
  *
  * Belt-and-suspenders: page identity is also checked against
  * mission_tasks.notion_page_id uniqueness in the claim path.
  */
-export function isAgentEcho(page: NotionPage): boolean {
-  if (getSelect(page, 'Write Source') !== 'Agent') return false;
-  const lastSynced = getDate(page, 'Last Synced At');
-  if (!lastSynced) return false;
-  const ageMs = Date.now() - new Date(lastSynced).getTime();
-  return ageMs >= 0 && ageMs < LOOP_PREVENTION_WINDOW_MS;
+export function isAgentEcho(page: NotionPage, actionDb: DispatchActionDb): boolean {
+  // (a) Hash check — fires regardless of Write Source, because Noah might
+  // (legitimately) flip a row back to a claim status without changing the
+  // content; if the hash still matches our last write, we'd just re-do
+  // the same work.
+  const incomingHash = getRichText(page, 'Content Hash').trim();
+  if (incomingHash) {
+    const lastHash = getLastContentHashForActionPage(actionDb, page.id);
+    if (lastHash && lastHash === incomingHash) return true;
+  }
+
+  // (b) Timestamp check (original Phase 4 logic).
+  if (getSelect(page, 'Write Source') === 'Agent') {
+    const lastSynced = getDate(page, 'Last Synced At');
+    if (lastSynced) {
+      const ageMs = Date.now() - new Date(lastSynced).getTime();
+      if (ageMs >= 0 && ageMs < LOOP_PREVENTION_WINDOW_MS) return true;
+    }
+  }
+
+  return false;
 }
 
 // ── Claim a single Notion row → mission_tasks + dispatch_log ──────────
@@ -146,7 +168,7 @@ export function claimNotionRow(page: NotionPage, laneKey: LaneConfig['key']): st
     return null;
   }
 
-  if (isAgentEcho(page)) {
+  if (isAgentEcho(page, lane.actionDb)) {
     logger.debug({ pageId: page.id, lane: lane.key }, 'Dropping agent-echo webhook');
     return null;
   }
@@ -345,7 +367,7 @@ async function spawnExecutionFromDecision(decisionPage: NotionPage): Promise<str
     logger.debug({ decisionId: decisionPage.id }, 'Decision already spawned — skipping');
     return null;
   }
-  if (isAgentEcho(decisionPage)) {
+  if (isAgentEcho(decisionPage, 'Decisions')) {
     logger.debug({ decisionId: decisionPage.id }, 'Decision echo — skipping');
     return null;
   }
