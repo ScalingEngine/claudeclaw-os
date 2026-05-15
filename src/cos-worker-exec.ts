@@ -28,23 +28,38 @@ const NTN_BIN = (process.env.NTN_BIN || envFile.NTN_BIN || 'ntn').trim();
 const COS_WORKER_DIR = (process.env.COS_WORKER_DIR || envFile.COS_WORKER_DIR || '').trim();
 const WORKER_EXEC_TIMEOUT_MS = 30_000;
 
+type ReleaseStaleClaimWorkerOutput = {
+  scanned?: number;
+  released?: number;
+  dry_run?: boolean;
+  released_run_ids?: string[];
+};
+
 type ReleaseStaleClaimResult = {
   released: number;
-  checked: number;
+  scanned: number;
 };
+
+// Notion Workers schema-builder validates ALL keys present — `.nullable()`
+// ≠ `.optional()`. Pass explicit nulls or values for every declared field.
+const STALE_AFTER_MINUTES = 30;
 
 export async function releaseStaleClaimViaWorker(): Promise<ReleaseStaleClaimResult | null> {
   if (!COS_WORKER_DIR) return null;
+  const payload = JSON.stringify({
+    stale_after_minutes: STALE_AFTER_MINUTES,
+    dry_run: false,
+  });
   try {
     const { stdout } = await execFileAsync(
       NTN_BIN,
-      ['workers', 'exec', 'releaseStaleClaim', '-d', '{}'],
+      ['workers', 'exec', 'releaseStaleClaim', '-d', payload],
       { cwd: COS_WORKER_DIR, timeout: WORKER_EXEC_TIMEOUT_MS },
     );
-    const result = JSON.parse(stdout) as Partial<ReleaseStaleClaimResult>;
+    const result = JSON.parse(stdout) as ReleaseStaleClaimWorkerOutput;
     return {
       released: typeof result.released === 'number' ? result.released : 0,
-      checked: typeof result.checked === 'number' ? result.checked : 0,
+      scanned: typeof result.scanned === 'number' ? result.scanned : 0,
     };
   } catch (err) {
     logger.warn({ err }, 'releaseStaleClaim worker call failed');

@@ -281,7 +281,7 @@ export async function reconcileOnce(): Promise<{ claimed: number; checked: numbe
   const releaseResult = await releaseStaleClaimViaWorker();
   if (releaseResult) {
     released = releaseResult.released;
-    checked += releaseResult.checked;
+    checked += releaseResult.scanned;
   }
 
   for (const lane of LANES) {
