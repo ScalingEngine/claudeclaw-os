@@ -15,12 +15,17 @@
  */
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 
 const execFileAsync = promisify(execFile);
 
-const NTN_BIN = process.env.NTN_BIN || 'ntn';
-const COS_WORKER_DIR = process.env.COS_WORKER_DIR || '';
+// Read from process.env first, then fall back to ~/claudeclaw/.env — same
+// pattern as notion-sync.ts. On VPS the systemd user unit may not set
+// EnvironmentFile=, so .env-only configs would otherwise be invisible.
+const envFile = readEnvFile(['NTN_BIN', 'COS_WORKER_DIR']);
+const NTN_BIN = (process.env.NTN_BIN || envFile.NTN_BIN || 'ntn').trim();
+const COS_WORKER_DIR = (process.env.COS_WORKER_DIR || envFile.COS_WORKER_DIR || '').trim();
 const WORKER_EXEC_TIMEOUT_MS = 30_000;
 
 type ReleaseStaleClaimResult = {
