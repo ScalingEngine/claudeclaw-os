@@ -36,6 +36,7 @@ import {
   markDispatchExecuted,
   markDispatchFailed,
 } from './db.js';
+import { releaseStaleClaimViaWorker } from './cos-worker-exec.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
@@ -268,10 +269,20 @@ function dashUuid(s: string): string {
 // ── Reconciliation poll ───────────────────────────────────────────────
 
 /** Poll all lanes once; idempotent claims. Returns counts for logging. */
-export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number; spawned: number }> {
+export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number; spawned: number; released: number }> {
   let claimed = 0;
   let checked = 0;
   let errors = 0;
+  let released = 0;
+
+  // Phase 6 Wave 0: delegate stale-claim sweep to cos-worker on VPS.
+  // Runs first so released rows are visible to the lane pass below.
+  // No-op on hosts without COS_WORKER_DIR (Mac/dev).
+  const releaseResult = await releaseStaleClaimViaWorker();
+  if (releaseResult) {
+    released = releaseResult.released;
+    checked += releaseResult.checked;
+  }
 
   for (const lane of LANES) {
     try {
@@ -300,13 +311,13 @@ export async function reconcileOnce(): Promise<{ claimed: number; checked: numbe
   checked += decisionsResult.checked;
   errors += decisionsResult.errors;
 
-  if (claimed > 0 || decisionsResult.spawned > 0 || errors > 0) {
+  if (claimed > 0 || decisionsResult.spawned > 0 || errors > 0 || released > 0) {
     logger.info(
-      { claimed, spawned: decisionsResult.spawned, checked, errors },
+      { claimed, spawned: decisionsResult.spawned, released, checked, errors },
       'Notion reconcile pass',
     );
   }
-  return { claimed, checked, errors, spawned: decisionsResult.spawned };
+  return { claimed, checked, errors, spawned: decisionsResult.spawned, released };
 }
 
 // ── Decisions: spawn Execution Queue rows from Decided + Downstream Action ──
