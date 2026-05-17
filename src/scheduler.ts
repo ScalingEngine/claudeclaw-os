@@ -20,8 +20,8 @@ import {
   setDispatchContentHash,
   setDispatchNotionPageId,
 } from './db.js';
-import { createDispatchReceiptViaWorker } from './cos-worker-exec.js';
-import { markNotionTerminal, mirrorDispatchToNotion } from './notion-sync.js';
+import { claimApprovedTicketViaWorker, createDispatchReceiptViaWorker } from './cos-worker-exec.js';
+import { markNotionTerminal } from './notion-sync.js';
 import { logger } from './logger.js';
 import { messageQueue } from './message-queue.js';
 import { runAgent } from './agent.js';
@@ -158,23 +158,31 @@ async function runDueMissionTasks(): Promise<void> {
 
   logger.info({ missionId: mission.id, title: mission.title }, 'Running mission task');
 
-  // Phase 4: Notion-originated mission? Flip dispatch_log to executing +
-  // mirror the queued/executing transition to Notion's Dispatch Log DB.
-  // Best-effort — local row is authoritative; mirror is for the Notion UX.
+  // Phase 4: Notion-originated mission? Flip local dispatch_log to
+  // executing (canonical audit), then do the governed claim-time Notion
+  // write via cos-worker.
+  //
+  // Phase 6 Wave 0.5 Phase C: this replaces the old per-agent
+  // mirrorDispatchToNotion(status:'Executing') call, which failed
+  // silently because the per-agent scheduler process lacks Notion
+  // access. claimApprovedTicket runs in Notion's infra with its own
+  // token, AND stamps the source row Write Source=Agent + Last Synced
+  // At at claim time (ClaudeClaw's local-first claim never did this —
+  // strengthens echo prevention + surfaces the claim in Notion).
+  // Idempotent by run_id; rejects non-claim-eligible rows. Best-effort:
+  // local dispatch_log stays canonical, worker failure ⇒ logged no-op.
   const isNotionLinked = !!mission.notion_page_id && !!mission.dispatch_log_id;
   if (isNotionLinked && mission.dispatch_log_id) {
     markDispatchExecuting(mission.dispatch_log_id);
-    mirrorDispatchToNotion({
-      dispatchId: mission.dispatch_log_id,
-      actionDb: notionDbLabel(mission.notion_db),
-      actionPageId: mission.notion_page_id!,
-      agent: schedulerAgentId,
-      runId: mission.id,
-      status: 'Executing',
-      startedAt: new Date(),
-    }).then((notionId) => {
-      if (notionId && mission.dispatch_log_id) {
-        setDispatchNotionPageId(mission.dispatch_log_id, notionId);
+    const dispatchLogId = mission.dispatch_log_id;
+    void claimApprovedTicketViaWorker({
+      action_page_id: mission.notion_page_id!,
+      action_db: notionDbLabel(mission.notion_db),
+      claimed_by: schedulerAgentId,
+      run_id: mission.id,
+    }).then((res) => {
+      if (res?.dispatch_log_page_id) {
+        setDispatchNotionPageId(dispatchLogId, res.dispatch_log_page_id);
       }
     });
   }

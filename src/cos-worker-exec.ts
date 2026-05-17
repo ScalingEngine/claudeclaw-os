@@ -196,3 +196,65 @@ export async function createDispatchReceiptViaWorker(
     return null;
   }
 }
+
+// ── Phase C: claimApprovedTicket claim-time Notion write ─────────────
+//
+// Replaces the silently-failing per-agent mirrorDispatchToNotion(
+// status:'Executing') call. claimApprovedTicket runs in Notion's infra
+// with its own token, so it actually lands (the inline mirror failed
+// because the per-agent scheduler process lacks Notion access).
+//
+// It also stamps the SOURCE row Write Source=Agent + Last Synced At at
+// claim time — which ClaudeClaw's local-first claim never did. That
+// surfaces the claim in Notion and strengthens echo prevention. The
+// tool rejects if the row isn't claim-eligible (claim_state must be
+// "unclaimed") and is idempotent: an already-claimed row returns the
+// existing Dispatch Log row instead of double-claiming.
+//
+// Best-effort: local dispatch_log (markDispatchExecuting) remains the
+// canonical execution audit. Worker failure ⇒ null ⇒ no-op.
+
+type ClaimApprovedTicketWorkerOutput = {
+  claimed?: boolean;
+  run_id?: string;
+  dispatch_log_page_id?: string;
+  action_page_id?: string;
+};
+
+export type ClaimApprovedTicketResult = {
+  claimed: boolean;
+  run_id: string;
+  dispatch_log_page_id: string;
+};
+
+export async function claimApprovedTicketViaWorker(input: {
+  action_page_id: string;
+  action_db: string;
+  claimed_by: string;
+  run_id: string;
+}): Promise<ClaimApprovedTicketResult | null> {
+  if (!COS_WORKER_DIR) return null;
+  const payload = JSON.stringify({
+    action_page_id: input.action_page_id,
+    action_db: input.action_db,
+    claimed_by: input.claimed_by,
+    run_id: input.run_id,
+  });
+  try {
+    const { stdout } = await execFileAsync(
+      NTN_BIN,
+      ['workers', 'exec', 'claimApprovedTicket', '-d', payload],
+      { cwd: COS_WORKER_DIR, timeout: WORKER_EXEC_TIMEOUT_MS },
+    );
+    const result = JSON.parse(stdout) as ClaimApprovedTicketWorkerOutput;
+    return {
+      claimed: result.claimed === true,
+      run_id: typeof result.run_id === 'string' ? result.run_id : input.run_id,
+      dispatch_log_page_id:
+        typeof result.dispatch_log_page_id === 'string' ? result.dispatch_log_page_id : '',
+    };
+  } catch (err) {
+    logger.warn({ err, runId: input.run_id }, 'claimApprovedTicket worker call failed');
+    return null;
+  }
+}
