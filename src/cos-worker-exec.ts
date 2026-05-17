@@ -125,3 +125,74 @@ export async function validateRowViaWorker(
     return null;
   }
 }
+
+// ── Phase B: createDispatchReceipt terminal receipt ──────────────────
+//
+// Fills a real gap: ClaudeClaw mirrors the Notion Dispatch Log row as
+// "Executing" at the claim→executing transition but never updates it to
+// Executed/Failed at terminal (only the local sqlite dispatch_log gets
+// the terminal update). createDispatchReceipt is idempotent by Run ID,
+// so calling it at terminal UPDATEs the same receipt row to its final
+// state instead of leaving it orphaned at Executing.
+//
+// Purely additive + best-effort: ClaudeClaw's local dispatch_log +
+// vault transcript remain the canonical execution audit (ARCHITECTURE-V2
+// authority split). Worker failure ⇒ null ⇒ no-op, local state intact.
+//
+// schema-builder validates ALL keys present (`.nullable()` ≠
+// `.optional()`) — every field below is sent explicitly, null when N/A.
+
+export type DispatchReceiptInput = {
+  run_id: string;
+  action_title: string;
+  action_db: string;
+  action_page_id: string;
+  actor: string;
+  status: 'Queued' | 'Executing' | 'Executed' | 'Failed';
+  action_type: string | null;
+  agent: string | null;
+  target: string | null;
+  details: string | null;
+  result: string | null;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  vault_slug: string | null;
+  content_hash: string | null;
+};
+
+type CreateDispatchReceiptWorkerOutput = {
+  receipt_page_id?: string;
+  created?: boolean;
+  run_id?: string;
+  status?: string;
+};
+
+export type DispatchReceiptResult = {
+  receipt_page_id: string;
+  created: boolean;
+  status: string;
+};
+
+export async function createDispatchReceiptViaWorker(
+  input: DispatchReceiptInput,
+): Promise<DispatchReceiptResult | null> {
+  if (!COS_WORKER_DIR) return null;
+  const payload = JSON.stringify(input);
+  try {
+    const { stdout } = await execFileAsync(
+      NTN_BIN,
+      ['workers', 'exec', 'createDispatchReceipt', '-d', payload],
+      { cwd: COS_WORKER_DIR, timeout: WORKER_EXEC_TIMEOUT_MS },
+    );
+    const result = JSON.parse(stdout) as CreateDispatchReceiptWorkerOutput;
+    return {
+      receipt_page_id: typeof result.receipt_page_id === 'string' ? result.receipt_page_id : '',
+      created: result.created === true,
+      status: typeof result.status === 'string' ? result.status : '',
+    };
+  } catch (err) {
+    logger.warn({ err, runId: input.run_id }, 'createDispatchReceipt worker call failed');
+    return null;
+  }
+}

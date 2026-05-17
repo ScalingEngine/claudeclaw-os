@@ -20,6 +20,7 @@ import {
   setDispatchContentHash,
   setDispatchNotionPageId,
 } from './db.js';
+import { createDispatchReceiptViaWorker } from './cos-worker-exec.js';
 import { markNotionTerminal, mirrorDispatchToNotion } from './notion-sync.js';
 import { logger } from './logger.js';
 import { messageQueue } from './message-queue.js';
@@ -354,7 +355,14 @@ async function tryWriteTranscript(
 // executed/failed AND write back to the source Notion row. Non-Notion
 // missions skip silently.
 async function finalizeNotion(
-  mission: { id: string; notion_page_id?: string | null; notion_db?: string | null; dispatch_log_id?: string | null },
+  mission: {
+    id: string;
+    title?: string;
+    notion_page_id?: string | null;
+    notion_db?: string | null;
+    dispatch_log_id?: string | null;
+    started_at?: number | null;
+  },
   outcome: 'success' | 'failed',
   detail: string,
 ): Promise<void> {
@@ -379,6 +387,41 @@ async function finalizeNotion(
     await markNotionTerminal(mission.notion_page_id, mission.notion_db, outcome, detail);
   } catch (err) {
     logger.warn({ err, missionId: mission.id }, 'markNotionTerminal threw — local state is authoritative');
+  }
+
+  // Phase 6 Wave 0.5 Phase B: update the Notion COS Dispatch Log receipt
+  // to its terminal state. ClaudeClaw mirrors the row as "Executing" at
+  // the claim transition but never updates it at terminal — this fills
+  // that gap. Idempotent by Run ID (UPDATEs the Executing row, no dup).
+  // Purely additive + best-effort: local dispatch_log + vault transcript
+  // remain the canonical audit (ARCHITECTURE-V2 authority split).
+  try {
+    const receipt = await createDispatchReceiptViaWorker({
+      run_id: mission.id,
+      action_title: mission.title ?? `${mission.notion_db}/${mission.notion_page_id.slice(0, 8)}`,
+      action_db: notionDbLabel(mission.notion_db),
+      action_page_id: mission.notion_page_id,
+      actor: 'COS Automated',
+      status: outcome === 'success' ? 'Executed' : 'Failed',
+      action_type: null,
+      agent: schedulerAgentId,
+      target: null,
+      details: null,
+      result: outcome === 'success' ? detail.slice(0, 2000) : null,
+      error: outcome === 'failed' ? detail.slice(0, 2000) : null,
+      started_at: mission.started_at ? new Date(mission.started_at).toISOString() : null,
+      finished_at: new Date().toISOString(),
+      vault_slug: `_execution/durable/queue/${mission.notion_db}/${mission.notion_page_id}.md`,
+      content_hash: contentHash || null,
+    });
+    if (receipt) {
+      logger.info(
+        { missionId: mission.id, receiptPageId: receipt.receipt_page_id, created: receipt.created, status: receipt.status },
+        'Dispatch Log receipt updated via cos-worker (Phase B)',
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, missionId: mission.id }, 'createDispatchReceipt threw — local state is authoritative');
   }
 }
 
