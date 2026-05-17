@@ -417,7 +417,8 @@ async function finalizeNotion(
       details: null,
       result: outcome === 'success' ? detail.slice(0, 2000) : null,
       error: outcome === 'failed' ? detail.slice(0, 2000) : null,
-      started_at: mission.started_at ? new Date(mission.started_at).toISOString() : null,
+      // mission.started_at is epoch SECONDS (sqlite strftime('%s')), not ms.
+      started_at: mission.started_at ? new Date(mission.started_at * 1000).toISOString() : null,
       finished_at: new Date().toISOString(),
       vault_slug: `_execution/durable/queue/${mission.notion_db}/${mission.notion_page_id}.md`,
       content_hash: contentHash || null,
