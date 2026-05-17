@@ -36,7 +36,7 @@ import {
   markDispatchExecuted,
   markDispatchFailed,
 } from './db.js';
-import { releaseStaleClaimViaWorker } from './cos-worker-exec.js';
+import { releaseStaleClaimViaWorker, validateRowViaWorker } from './cos-worker-exec.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
@@ -254,6 +254,16 @@ export async function handleNotionWebhook(payload: NotionWebhookPayload): Promis
     return { claimed: false, reason: `status=${status} not a claim trigger for ${lane.key}` };
   }
 
+  // Phase A: governed pre-claim gate. Best-effort — null ⇒ proceed.
+  const verdict = await validateRowViaWorker(page.id);
+  if (verdict?.reject) {
+    logger.info(
+      { pageId: page.id, lane: lane.key, claimState: verdict.claim_state, status: verdict.status, notes: verdict.notes },
+      'Pre-claim gate rejected row (cos-worker validateAgentReadyRow)',
+    );
+    return { claimed: false, reason: `gated: claim_state=${verdict.claim_state}` };
+  }
+
   const missionId = claimNotionRow(page, lane.key);
   return missionId
     ? { claimed: true, reason: `mission ${missionId}` }
@@ -269,11 +279,12 @@ function dashUuid(s: string): string {
 // ── Reconciliation poll ───────────────────────────────────────────────
 
 /** Poll all lanes once; idempotent claims. Returns counts for logging. */
-export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number; spawned: number; released: number }> {
+export async function reconcileOnce(): Promise<{ claimed: number; checked: number; errors: number; spawned: number; released: number; gated: number }> {
   let claimed = 0;
   let checked = 0;
   let errors = 0;
   let released = 0;
+  let gated = 0;
 
   // Phase 6 Wave 0: delegate stale-claim sweep to cos-worker on VPS.
   // Runs first so released rows are visible to the lane pass below.
@@ -295,6 +306,16 @@ export async function reconcileOnce(): Promise<{ claimed: number; checked: numbe
       const pages = await queryDatabase(lane.dbId, filter);
       checked += pages.length;
       for (const page of pages) {
+        // Phase A: governed pre-claim gate. Best-effort — null ⇒ proceed.
+        const verdict = await validateRowViaWorker(page.id);
+        if (verdict?.reject) {
+          gated += 1;
+          logger.info(
+            { pageId: page.id, lane: lane.key, claimState: verdict.claim_state, status: verdict.status, notes: verdict.notes },
+            'Pre-claim gate rejected row (cos-worker validateAgentReadyRow)',
+          );
+          continue;
+        }
         const missionId = claimNotionRow(page, lane.key);
         if (missionId) claimed += 1;
       }
@@ -311,13 +332,13 @@ export async function reconcileOnce(): Promise<{ claimed: number; checked: numbe
   checked += decisionsResult.checked;
   errors += decisionsResult.errors;
 
-  if (claimed > 0 || decisionsResult.spawned > 0 || errors > 0 || released > 0) {
+  if (claimed > 0 || decisionsResult.spawned > 0 || errors > 0 || released > 0 || gated > 0) {
     logger.info(
-      { claimed, spawned: decisionsResult.spawned, released, checked, errors },
+      { claimed, spawned: decisionsResult.spawned, released, gated, checked, errors },
       'Notion reconcile pass',
     );
   }
-  return { claimed, checked, errors, spawned: decisionsResult.spawned, released };
+  return { claimed, checked, errors, spawned: decisionsResult.spawned, released, gated };
 }
 
 // ── Decisions: spawn Execution Queue rows from Decided + Downstream Action ──

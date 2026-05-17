@@ -66,3 +66,62 @@ export async function releaseStaleClaimViaWorker(): Promise<ReleaseStaleClaimRes
     return null;
   }
 }
+
+// ── Phase A: validateAgentReadyRow pre-claim gate ────────────────────
+//
+// Read-only. Before ClaudeClaw commits a local claim, ask the governed
+// cos-worker tool whether the Notion row is in a claim-eligible state.
+// We only act on UNAMBIGUOUS reject states (terminal / claimed /
+// drafting) — we deliberately do NOT reject on missing Phase 4 schema
+// props (legacy rows ClaudeClaw legitimately claims) or
+// write_source=Agent (ClaudeClaw's content-hash echo check is more
+// precise). Purely additive: blocks only clearly-wrong claims earlier,
+// with a governed audit note. Best-effort — worker failure ⇒ null ⇒
+// caller falls back to today's behavior.
+
+type ValidateAgentReadyRowWorkerOutput = {
+  row_id?: string;
+  title?: string;
+  valid?: boolean;
+  status?: string | null;
+  write_source?: string | null;
+  claim_state?: string;
+  ready_for_claim?: boolean;
+  notes?: string[];
+};
+
+export type RowGateVerdict = {
+  /** true ⇒ caller should NOT claim; false ⇒ proceed as normal */
+  reject: boolean;
+  claim_state: string;
+  status: string | null;
+  notes: string[];
+};
+
+/** Claim states that unambiguously mean "do not claim this row". */
+const HARD_REJECT_CLAIM_STATES = new Set(['terminal', 'claimed', 'drafting']);
+
+export async function validateRowViaWorker(
+  pageId: string,
+): Promise<RowGateVerdict | null> {
+  if (!COS_WORKER_DIR) return null;
+  const payload = JSON.stringify({ row_id: pageId });
+  try {
+    const { stdout } = await execFileAsync(
+      NTN_BIN,
+      ['workers', 'exec', 'validateAgentReadyRow', '-d', payload],
+      { cwd: COS_WORKER_DIR, timeout: WORKER_EXEC_TIMEOUT_MS },
+    );
+    const result = JSON.parse(stdout) as ValidateAgentReadyRowWorkerOutput;
+    const claimState = typeof result.claim_state === 'string' ? result.claim_state : 'unknown';
+    return {
+      reject: HARD_REJECT_CLAIM_STATES.has(claimState),
+      claim_state: claimState,
+      status: result.status ?? null,
+      notes: Array.isArray(result.notes) ? result.notes : [],
+    };
+  } catch (err) {
+    logger.warn({ err, pageId }, 'validateAgentReadyRow worker call failed');
+    return null;
+  }
+}
